@@ -84,6 +84,40 @@ class CryptoUtils {
     return Uint8List.fromList(decrypted);
   }
 
+  static String encryptCaseData(
+    Map<String, dynamic> caseData,
+    Uint8List aesKey,
+  ) {
+    final iv = _generateIV();
+    final cipher = CBCBlockCipher(AESEngine())
+      ..init(true, ParametersWithIV(KeyParameter(aesKey), iv));
+
+    final padded = _pkcs7Pad(
+      Uint8List.fromList(utf8.encode(jsonEncode(caseData))),
+      16,
+    );
+    final encrypted = _processBlocks(cipher, padded);
+
+    final result = Uint8List.fromList(iv + encrypted);
+    return base64Encode(result);
+  }
+
+  static Map<String, dynamic> decryptCaseData(
+    String encryptedData,
+    Uint8List aesKey,
+  ) {
+    final data = base64Decode(encryptedData);
+    final iv = data.sublist(0, 16);
+    final ciphertext = data.sublist(16);
+
+    final cipher = CBCBlockCipher(AESEngine())
+      ..init(false, ParametersWithIV(KeyParameter(aesKey), iv));
+
+    final decrypted = _processBlocks(cipher, ciphertext);
+    final unpadded = _pkcs7Unpad(decrypted);
+    return jsonDecode(utf8.decode(unpadded));
+  }
+
   static SecureRandom _secureRandom() {
     final secureRandom = FortunaRandom();
     final seed = Uint8List.fromList(

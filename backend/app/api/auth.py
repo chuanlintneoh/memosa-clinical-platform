@@ -73,7 +73,7 @@ def login_user(request: Request):
             "uid": uid,
             "email": email,
             "role": role,
-            "name": user_data.get("name"),
+            "name": user_data.get("name"), # TODO: study coordinator / admin name retrieval
             "public_rsa": user_data.get("public_rsa"),
             "private_rsa": user_data.get("private_rsa"),
         }

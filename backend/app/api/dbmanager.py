@@ -1,6 +1,9 @@
+from fastapi import APIRouter
 from app.models.case import ClinicianDiagnosis, ImageDiagnoses, CasePrivate, Case
 from typing import Dict
 from datetime import datetime
+
+router = APIRouter()
 
 class DbManager:
     def __init__(self):

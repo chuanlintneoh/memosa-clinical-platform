@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/auth.dart';
+import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/firebase_options.dart';
 // import 'package:http/http.dart' as http;
@@ -28,6 +30,8 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  var publicRsa;
+  var privateRsa;
   // Login user
   try {
     final result = await AuthService.loginUser(
@@ -36,10 +40,63 @@ void main() async {
         password: dotenv.env['PRIVATE_KEY_PASSWORD'] ?? '',
       ),
     );
+    if (result != null) {
+      publicRsa = result['public_rsa'];
+      privateRsa = result['private_rsa'];
+    } else {
+      print("Login failed or no user data returned.");
+    }
     print(result);
   } catch (e) {
     print("Error: $e");
   }
+
+  // Case creation
+  final caseData = CaseModel(
+    name: "test",
+    idType: IdType.NRIC,
+    idNum: "123",
+    dob: DateTime(2000, 1, 1),
+    gender: Gender.MALE,
+    ethnicity: "Chinese",
+    phoneNum: "0123",
+    address: "test",
+    attendingHos: "test",
+  ).toJson();
+  print("1. Case Data: $caseData");
+  final newAesKey = CryptoUtils.generateAESKey();
+  print("2. New AES Key: $newAesKey");
+  final encryptedBlob = CryptoUtils.encryptCaseData(caseData, newAesKey);
+  print("3. Encrypted Case Data: $encryptedBlob");
+  final decodedPublicRsa = CryptoUtils.decodePublicKeyFromPem(publicRsa);
+  print("4. Decoded Public RSA: $decodedPublicRsa");
+  final encryptedAesKey = CryptoUtils.encryptAESKey(
+    newAesKey,
+    decodedPublicRsa,
+  );
+  print("5. Encrypted AES Key: $encryptedAesKey");
+  final downloadUrl = await StorageService.uploadEncryptedBlob(
+    encryptedBlob: encryptedBlob,
+    fileName: "test",
+  );
+  print("6. Download URL: $downloadUrl");
+  // Case retrieval
+  final downloadedBlob = await StorageService.downloadEncryptedBlob(
+    downloadUrl,
+  );
+  print("7. Downloaded Blob: $downloadedBlob");
+  final decodedPrivateRsa = CryptoUtils.decodePrivateKeyFromPem(privateRsa);
+  print("8. Decoded Private RSA: $decodedPrivateRsa");
+  final decryptedAesKey = CryptoUtils.decryptAESKey(
+    encryptedAesKey,
+    decodedPrivateRsa,
+  );
+  print("9. Decrypted AES Key: $decryptedAesKey");
+  final decryptedBlob = CryptoUtils.decryptCaseData(
+    downloadedBlob,
+    decryptedAesKey,
+  );
+  print("10. Decrypted Case Data: $decryptedBlob");
 
   // Generate shared RSA key pair
   // var rsakeypair = CryptoUtils.generateRSAKeyPair(bitLength: 2048);
