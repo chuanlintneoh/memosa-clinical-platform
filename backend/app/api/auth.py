@@ -1,24 +1,9 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-from enum import Enum
+from fastapi import APIRouter, HTTPException, Request
 from firebase_admin import auth, firestore
 from app.core.firebase import firebase_app, db
+from app.models.user import UserRole, RegisterUser
 
 router = APIRouter()
-
-class UserRole(str, Enum):
-    study_coordinator = "study_coordinator"
-    clinician = "clinician"
-    admin = "admin"
-
-class RegisterUser(BaseModel):
-    full_name: str
-    email: EmailStr
-    password: str
-    role: UserRole
-    public_rsa: Optional[str] = None
-    private_rsa: Optional[str] = None
 
 @router.post("/register")
 def register_user(data: RegisterUser):
@@ -62,43 +47,50 @@ def notify_dbmanager_new_clinician(uid: str, public_rsa: str):
     # Placeholder for notifying the database manager about a new clinician
     return True
 
-@router.get("/me")
-def get_current_user(request: Request):
+@router.get("/login")
+def login_user(request: Request):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     try:
         decoded = auth.verify_id_token(token)
         uid = decoded["uid"]
         role = decoded.get("role")
         email = decoded["email"]
+
+        if role in ["admin", "study_coordinator"]:
+            doc_ref = db.collection("users").document("shared-key")
+        elif role == "clinician":
+            doc_ref = db.collection("users").document(uid)
+        else:
+            raise HTTPException(status_code=403, detail="Unknown role")
         
-        user_doc = db.collection("users").document(uid).get()
-        user_data = user_doc.to_dict() if user_doc.exists else {}
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="User document not found")
+        
+        user_data = doc.to_dict()
 
         return {
             "uid": uid,
             "email": email,
             "role": role,
             "name": user_data.get("name"),
+            "public_rsa": user_data.get("public_rsa"),
+            "private_rsa": user_data.get("private_rsa"),
         }
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-# def verify_token(request: Request):
-#     auth_header = request.headers.get("Authorization")
-#     if not auth_header or not auth_header.startswith("Bearer "):
-#         raise HTTPException(status_code=401, detail="Authorization header missing or invalid")
-    
-#     id_token = auth_header.split(" ")[1]
-#     try:
-#         decoded_token = auth.verify_id_token(id_token)
-#         return decoded_token  # includes uid, email, customClaims etc.
-#     except Exception:
-#         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
-# # Before calling get_profile, first call the function verify_token and pass its return value as the argument user
-# @router.get("/profile")
-# def get_profile(user=Depends(verify_token)):
-#     return {
-#         "uid": user["uid"],
-#         "email": user["email"],
-#         "role": user.get("role", "unknown"),
-#     }
+# development use only
+@router.post("/store-key")
+async def store_key(request: Request):
+    data = await request.json()
+    public_rsa = data.get("public_rsa")
+    private_rsa = data.get("private_rsa")
+    try:
+        db.collection("users").document("shared-key").update({
+            "public_rsa": public_rsa,
+            "private_rsa": private_rsa,
+        })
+        return {"message": "Keys stored successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
