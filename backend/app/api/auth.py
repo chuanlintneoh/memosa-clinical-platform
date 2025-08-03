@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from firebase_admin import auth, firestore
 from app.core.firebase import firebase_app, db
 from app.models.user import UserRole, RegisterUser
+from app.api.dbmanager import dbmanager
 
 router = APIRouter()
 
@@ -44,8 +45,7 @@ def register_user(data: RegisterUser):
         raise HTTPException(status_code=400, detail=str(e))
 
 def notify_dbmanager_new_clinician(uid: str, public_rsa: str):
-    # Placeholder for notifying the database manager about a new clinician
-    return True
+    return dbmanager.add_new_clinician_key(uid, public_rsa) and dbmanager.generate_encrypted_keys_for_new_clinician(uid, public_rsa)
 
 @router.get("/login")
 def login_user(request: Request):
@@ -56,27 +56,44 @@ def login_user(request: Request):
         role = decoded.get("role")
         email = decoded["email"]
 
+        user_doc = db.collection("users").document(uid).get()
+        if not user_doc.exists:
+            raise HTTPException(status_code=404, detail="User document not found")
+        user_data = user_doc.to_dict()
+        name = user_data.get("name", "")
+
         if role in ["admin", "study_coordinator"]:
-            doc_ref = db.collection("users").document("shared-key")
+            shared_doc = db.collection("users").document("shared-key").get()
+            if not shared_doc.exists:
+                raise HTTPException(status_code=404, detail="Shared key document not found")
+            shared_data = shared_doc.to_dict()
+            public_rsa = shared_data.get("public_rsa")
+            private_rsa = shared_data.get("private_rsa")
         elif role == "clinician":
-            doc_ref = db.collection("users").document(uid)
+            public_rsa = user_data.get("public_rsa")
+            private_rsa = user_data.get("private_rsa")
         else:
             raise HTTPException(status_code=403, detail="Unknown role")
         
-        doc = doc_ref.get()
-        if not doc.exists:
-            raise HTTPException(status_code=404, detail="User document not found")
-        
-        user_data = doc.to_dict()
+        system_rsa = None
+        if role == "study_coordinator":
+            system_doc = db.collection("users").document("system-key").get()
+            if not system_doc.exists:
+                raise HTTPException(status_code=404, detail="System key document not found")
+            system_rsa = system_doc.get("public_rsa")
 
-        return {
+        response = {
             "uid": uid,
             "email": email,
             "role": role,
-            "name": user_data.get("name"), # TODO: study coordinator / admin name retrieval
-            "public_rsa": user_data.get("public_rsa"),
-            "private_rsa": user_data.get("private_rsa"),
+            "name": name,
+            "public_rsa": public_rsa,
+            "private_rsa": private_rsa,
         }
+        if role == "study_coordinator":
+            response["system_rsa"] = system_rsa
+
+        return response
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
@@ -92,5 +109,20 @@ async def store_key(request: Request):
             "private_rsa": private_rsa,
         })
         return {"message": "Keys stored successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+# development use only
+@router.get("/get-key")
+async def get_key(request: Request):
+    try:
+        system_doc = db.collection("users").document("system-key").get()
+        if not system_doc.exists:
+            raise HTTPException(status_code=404, detail="System key document not found")
+        system_data = system_doc.to_dict()
+        return {
+            "public_rsa": system_data.get("public_rsa"),
+            "private_rsa": system_data.get("private_rsa"),
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

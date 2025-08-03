@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/auth.dart';
+import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/firebase_options.dart';
@@ -23,7 +25,7 @@ void main() async {
   // final result = await AuthService.registerUser(
   //   fullName: "Clinician 1",
   //   email: "clinician1@example.com",
-  //   password: "MeMoSA2025",
+  //   password: dotenv.env['PASSWORD'] ?? '',
   //   role: UserRole.clinician,
   // );
   // print(result);
@@ -37,7 +39,7 @@ void main() async {
     final result = await AuthService.loginUser(
       user: LoginUser(
         email: "studycoordinator1@example.com",
-        password: dotenv.env['PRIVATE_KEY_PASSWORD'] ?? '',
+        password: dotenv.env['PASSWORD'] ?? '',
       ),
     );
     if (result != null) {
@@ -52,51 +54,47 @@ void main() async {
   }
 
   // Case creation
-  final caseData = CaseModel(
-    name: "test",
-    idType: IdType.NRIC,
-    idNum: "123",
-    dob: DateTime(2000, 1, 1),
-    gender: Gender.MALE,
-    ethnicity: "Chinese",
-    phoneNum: "0123",
-    address: "test",
-    attendingHos: "test",
-  ).toJson();
-  print("1. Case Data: $caseData");
-  final newAesKey = CryptoUtils.generateAESKey();
-  print("2. New AES Key: $newAesKey");
-  final encryptedBlob = CryptoUtils.encryptCaseData(caseData, newAesKey);
-  print("3. Encrypted Case Data: $encryptedBlob");
-  final decodedPublicRsa = CryptoUtils.decodePublicKeyFromPem(publicRsa);
-  print("4. Decoded Public RSA: $decodedPublicRsa");
-  final encryptedAesKey = CryptoUtils.encryptAESKey(
-    newAesKey,
-    decodedPublicRsa,
+  DbManagerService.createCase(
+    caseId: "test",
+    publicData: PublicCaseModel(
+      createdAt: DateTime.now(),
+      createdBy: "test_user",
+      alcohol: Habit.YES,
+      alcoholDuration: "2 years",
+      betelQuid: Habit.OCCASIONALLY,
+      betelQuidDuration: "1 year",
+      smoking: Habit.NO,
+      smokingDuration: "3 years",
+      oralHygieneProductsUsed: true,
+      oralHygieneProductTypeUsed: "Toothpaste",
+      slsContainingToothpaste: true,
+      slsContainingToothpasteUsed: "Darlie",
+      additionalComments: "Test case for clinician",
+    ),
+    privateData: PrivateCaseModel(
+      address: "123 Test St",
+      age: "30",
+      attendingHospital: "Test Hospital",
+      chiefComplaint: "Test complaint",
+      consentForm: Uint8List.fromList(utf8.encode("Test consent form")),
+      dob: DateTime(1993, 1, 1),
+      ethnicity: "Chinese",
+      gender: Gender.MALE,
+      idNum: "S1234567A",
+      idType: IdType.NRIC,
+      lesionClinicalPresentation: "Test presentation",
+      medicalHistory: "No known allergies",
+      medicationHistory: "No medications",
+      name: "Test User",
+      phoneNum: "12345678",
+      presentingComplaintHistory: "Test history",
+      images: List.generate(
+        9,
+        (_) => Uint8List.fromList(utf8.encode("Test image data")),
+      ),
+    ),
+    systemRsa: dotenv.env['SYSTEM_PUBLIC_RSA'] ?? '',
   );
-  print("5. Encrypted AES Key: $encryptedAesKey");
-  final downloadUrl = await StorageService.uploadEncryptedBlob(
-    encryptedBlob: encryptedBlob,
-    fileName: "test",
-  );
-  print("6. Download URL: $downloadUrl");
-  // Case retrieval
-  final downloadedBlob = await StorageService.downloadEncryptedBlob(
-    downloadUrl,
-  );
-  print("7. Downloaded Blob: $downloadedBlob");
-  final decodedPrivateRsa = CryptoUtils.decodePrivateKeyFromPem(privateRsa);
-  print("8. Decoded Private RSA: $decodedPrivateRsa");
-  final decryptedAesKey = CryptoUtils.decryptAESKey(
-    encryptedAesKey,
-    decodedPrivateRsa,
-  );
-  print("9. Decrypted AES Key: $decryptedAesKey");
-  final decryptedBlob = CryptoUtils.decryptCaseData(
-    downloadedBlob,
-    decryptedAesKey,
-  );
-  print("10. Decrypted Case Data: $decryptedBlob");
 
   // Generate shared RSA key pair
   // var rsakeypair = CryptoUtils.generateRSAKeyPair(bitLength: 2048);

@@ -1,0 +1,71 @@
+[
+    {
+        "created_at": "",
+        "created_by": "",
+        "submitted_at": "",
+        "encrypted_blob_url": "",
+        "alcohol": "",
+        "alcohol_duration": "",
+        "betel_quid": "",
+        "betel_quid_duration": "",
+        "smoking": "",
+        "smoking_duration": "",
+        "oral_hygiene_products_used": "",
+        "oral_hygiene_product_type_used": "",
+        "sls_containing_toothpaste": "",
+        "sls_containing_toothpaste_used": "",
+        "additional_comments": "",
+        "diagnoses": [
+            {
+                "ai_lesion_type": "",
+                "biopsy_agree_with_coe": "",
+                "biopsy_clinical_diagnosis": "",
+                "biopsy_lesion_type": "",
+                "biopsy_report_url": "",
+                "coe_clinical_diagnosis": "",
+                "coe_lesion_type": "",
+                "clinician1uid": {
+                    "clinical_diagnosis": "",
+                    "lesion_type": "",
+                    "low_quality": "",
+                    "timestamp": ""
+                }
+            }
+        ],
+        "encrypted_keys": {
+            "clinician1uid": "",
+            "clinician2uid": "",
+            "shared": "",
+            "system": ""
+        }
+    },
+    {
+        "address": "",
+        "age": "",
+        "attending_hospital": "",
+        "chief_complaint": "",
+        "consent_form": {"filename": "consent_form.pdf", "data": "base64..."},
+        "dob": "",
+        "ethnicity": "",
+        "gender": "",
+        "idnum": "",
+        "idtype": "",
+        "lesion_clinical_presentation": "",
+        "medical_history": "",
+        "medication_history": "",
+        "name": "",
+        "phonenum": "",
+        "presenting_complaint_history": "",
+        "images": [
+            {"filename": "image1.jpg", "data": "base64..."},
+            {"filename": "image2.jpg", "data": "base64..."},
+            {"filename": "image3.jpg", "data": "base64..."},
+            {"filename": "image4.jpg", "data": "base64..."},
+            {"filename": "image5.jpg", "data": "base64..."},
+            {"filename": "image6.jpg", "data": "base64..."},
+            {"filename": "image7.jpg", "data": "base64..."},
+            {"filename": "image8.jpg", "data": "base64..."},
+            {"filename": "image9.jpg", "data": "base64..."}
+        ]
+    }
+]

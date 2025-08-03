@@ -19,22 +19,27 @@ class CryptoUtils {
   }
 
   static String encodePublicKeyToPem(RSAPublicKey publicKey) {
+    // for storing new public keys
     return bu.CryptoUtils.encodeRSAPublicKeyToPem(publicKey);
   }
 
   static RSAPublicKey decodePublicKeyFromPem(String publicPem) {
+    // for retrieving public keys
     return bu.CryptoUtils.rsaPublicKeyFromPem(publicPem);
   }
 
   static String encodePrivateKeyToPem(RSAPrivateKey privateKey) {
+    // for storing new private keys
     return bu.CryptoUtils.encodeRSAPrivateKeyToPem(privateKey);
   }
 
   static RSAPrivateKey decodePrivateKeyFromPem(String privatePem) {
+    // for retrieving private keys
     return bu.CryptoUtils.rsaPrivateKeyFromPem(privatePem);
   }
 
   static String encryptPrivateKey(String privatePem, String password) {
+    // for storing new private keys securely
     final key = _deriveKey(password);
     final iv = _generateIV();
     final cipher = CBCBlockCipher(AESEngine())
@@ -48,6 +53,7 @@ class CryptoUtils {
   }
 
   static String decryptPrivateKey(String encryptedPem, String password) {
+    // for retrieving private keys securely
     final data = base64Decode(encryptedPem);
     final iv = data.sublist(0, 16);
     final ciphertext = data.sublist(16);
@@ -116,6 +122,31 @@ class CryptoUtils {
     final decrypted = _processBlocks(cipher, ciphertext);
     final unpadded = _pkcs7Unpad(decrypted);
     return jsonDecode(utf8.decode(unpadded));
+  }
+
+  static String encryptString(String data, Uint8List aesKey) {
+    final iv = _generateIV();
+    final cipher = CBCBlockCipher(AESEngine())
+      ..init(true, ParametersWithIV(KeyParameter(aesKey), iv));
+
+    final padded = _pkcs7Pad(Uint8List.fromList(utf8.encode(data)), 16);
+    final encrypted = _processBlocks(cipher, padded);
+
+    final result = Uint8List.fromList(iv + encrypted);
+    return base64Encode(result);
+  }
+
+  static String decryptString(String encryptedData, Uint8List aesKey) {
+    final data = base64Decode(encryptedData);
+    final iv = data.sublist(0, 16);
+    final ciphertext = data.sublist(16);
+
+    final cipher = CBCBlockCipher(AESEngine())
+      ..init(false, ParametersWithIV(KeyParameter(aesKey), iv));
+
+    final decrypted = _processBlocks(cipher, ciphertext);
+    final unpadded = _pkcs7Unpad(decrypted);
+    return utf8.decode(unpadded);
   }
 
   static SecureRandom _secureRandom() {

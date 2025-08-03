@@ -1,5 +1,7 @@
 fastapi
 firebase-admin
+pycryptodome
 pydantic[email]
+python-dateutil
 python-dotenv
 uvicorn
