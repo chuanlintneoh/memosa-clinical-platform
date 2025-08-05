@@ -18,4 +18,4 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 EXPOSE 8080
 
 # Run the FastAPI app
-CMD ["python", "-m", "app.main"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
