@@ -5,20 +5,17 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y gcc
+RUN apt-get update && apt-get install -y gcc && apt-get clean
 
-# Copy files
-COPY . .
-
-# Install latest security patches at build time
-RUN apt-get update && apt-get upgrade -y && apt-get install -y gcc && apt-get clean
+# Copy files from backend folder (monorepo)
+COPY backend/app ./app
+COPY backend/requirements.txt .
 
 # Install dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Expose port
 EXPOSE 8080
 
 # Run the FastAPI app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
