@@ -14,9 +14,6 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Show folder structure for debugging
-RUN echo "=== FILE STRUCTURE ===" && find / -type f -o -type d
-
 # Expose port
 EXPOSE 8080
 
