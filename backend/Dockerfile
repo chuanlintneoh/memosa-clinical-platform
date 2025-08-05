@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y gcc && apt-get clean
 # Copy files from backend folder (monorepo)
 COPY app/ ./app
 COPY requirements.txt .
-COPY secrets/ ./secrets
 
 # Install dependencies
 RUN pip install --upgrade pip && pip install -r requirements.txt
