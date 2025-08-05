@@ -8,8 +8,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y gcc && apt-get clean
 
 # Copy files from backend folder (monorepo)
-COPY backend/app ./app
-COPY backend/requirements.txt .
+COPY app ./app
+COPY requirements.txt .
 
 # Install dependencies
 RUN pip install --upgrade pip && pip install -r requirements.txt
