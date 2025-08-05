@@ -1,7 +1,9 @@
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+# Only load .env if running locally
+if os.getenv("GOOGLE_CLOUD_RUN") != "1":
+    load_dotenv()
 
 PASSWORD = os.getenv("PASSWORD")
 SYSTEM_PUBLIC_RSA = os.getenv("SYSTEM_PUBLIC_RSA")

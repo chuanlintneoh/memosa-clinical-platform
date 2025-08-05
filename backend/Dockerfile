@@ -2,20 +2,24 @@
 FROM python:3.10-slim
 
 # Set working directory
-WORKDIR /app
+WORKDIR /backend
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y gcc && apt-get clean
 
 # Copy files from backend folder (monorepo)
-COPY app ./app
+COPY app/ ./app
 COPY requirements.txt .
+COPY secrets/ ./secrets
 
 # Install dependencies
 RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Show folder structure for debugging
+RUN echo "=== FILE STRUCTURE ===" && find / -type f -o -type d
 
 # Expose port
 EXPOSE 8080
 
 # Run the FastAPI app
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+CMD ["python", "-m", "app.main"]
