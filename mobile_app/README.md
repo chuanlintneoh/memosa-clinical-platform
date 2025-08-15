@@ -32,6 +32,9 @@ flutter clean
 flutter pub get
 
 flutter run
+
+// Test Dart code
+dart lib/path/code.dart
 ```
 
 Project Structure:

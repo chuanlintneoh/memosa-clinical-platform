@@ -145,15 +145,15 @@ class Diagnosis {
 
 class CaseDocumentModel {
   final PublicCaseModel publicData;
-  final String encryptedBlobUrl;
-  final String encryptedComments;
-  final String encryptedAesKey;
+  final Map<String, String> encryptedAes;
+  final Map<String, String> encryptedBlob;
+  final Map<String, String> encryptedComments;
 
   CaseDocumentModel({
     required this.publicData,
-    required this.encryptedBlobUrl,
+    required this.encryptedAes,
+    required this.encryptedBlob,
     required this.encryptedComments,
-    required this.encryptedAesKey,
   });
 
   Map<String, dynamic> toJson() {
@@ -161,7 +161,6 @@ class CaseDocumentModel {
       "created_at": publicData.createdAt.toIso8601String(),
       "created_by": publicData.createdBy,
       // "submitted_at": "",
-      "encrypted_blob_url": encryptedBlobUrl,
       "alcohol": publicData.alcohol.name,
       "alcohol_duration": publicData.alcoholDuration,
       "betel_quid": publicData.betelQuid.name,
@@ -172,9 +171,10 @@ class CaseDocumentModel {
       "oral_hygiene_product_type_used": publicData.oralHygieneProductTypeUsed,
       "sls_containing_toothpaste": publicData.slsContainingToothpaste,
       "sls_containing_toothpaste_used": publicData.slsContainingToothpasteUsed,
+      "encrypted_aes": encryptedAes,
+      "encrypted_blob": encryptedBlob,
       "additional_comments": encryptedComments,
       "diagnoses": List.generate(9, (_) => Diagnosis.empty().toJson()),
-      "encrypted_keys": {"system": encryptedAesKey},
     };
   }
 }

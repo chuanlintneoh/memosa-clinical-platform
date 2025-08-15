@@ -1,11 +1,12 @@
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
-import 'package:uuid/uuid.dart';
+// import 'package:uuid/uuid.dart';
 
 class DbManagerService {
   static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
@@ -14,7 +15,6 @@ class DbManagerService {
     required String caseId,
     required PublicCaseModel publicData,
     required PrivateCaseModel privateData,
-    required String systemRsa,
   }) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -23,46 +23,41 @@ class DbManagerService {
       // final caseId = const Uuid().v4();
       // final createdAt = DateTime.now().toIso8601String().replaceAll(":", "-");
 
-      final Map<String, dynamic> privateDataJson = privateData.toJson();
-      // print("1. Case Data: $privateDataJson");
       final newAesKey = CryptoUtils.generateAESKey();
-      // print("2. New AES Key: $newAesKey");
-      final String encryptedBlob = CryptoUtils.encryptCaseData(
-        privateDataJson,
+      var encryptedData = CryptoUtils.encryptString(
+        jsonEncode(privateData.toJson()),
         newAesKey,
       );
-      // print("3. Encrypted Case Data: $encryptedBlob");
-      final decodedPublicRsa = CryptoUtils.decodePublicKeyFromPem(systemRsa);
-      // print("4. Decoded Public RSA: $decodedPublicRsa");
-      final String encryptedAesKey = CryptoUtils.encryptAESKey(
-        newAesKey,
-        decodedPublicRsa,
-      );
-      // print("5. Encrypted AES Key: $encryptedAesKey");
-      final String downloadUrl = await StorageService.uploadEncryptedBlob(
-        encryptedBlob: encryptedBlob,
-        fileName:
-            "${caseId}_${publicData.createdAt.toIso8601String().split('.').first.replaceAll("-", "").replaceAll(":", "")}.enc",
-      );
-      // print("6. Download URL: $downloadUrl");
+      final encryptedBlob = <String, String>{
+        'url': await StorageService.uploadEncryptedBlob(
+          encryptedBlob: encryptedData['ciphertext'],
+          fileName:
+              "${caseId}_${publicData.createdAt.toIso8601String().split('.').first.replaceAll('-', '').replaceAll(':', '')}.enc",
+        ),
+        'iv': encryptedData['iv'] ?? "NULL",
+      };
 
-      String encryptedComments = "NULL";
-      if (publicData.additionalComments != null &&
-          publicData.additionalComments!.trim().isNotEmpty) {
-        encryptedComments = CryptoUtils.encryptString(
-          publicData.additionalComments!,
-          newAesKey,
-        );
-      }
+      final encryptedAes = CryptoUtils.encryptAESKeyWithPassphrase(
+        newAesKey,
+        dotenv.env['PASSWORD'] ?? '',
+      );
+
+      final encryptedComments =
+          (publicData.additionalComments?.trim().isNotEmpty ?? false)
+          ? CryptoUtils.encryptString(
+              publicData.additionalComments!.trim(),
+              newAesKey,
+            )
+          : {'ciphertext': "NULL", 'iv': "NULL"};
 
       final url = Uri.parse("$_baseUrl/case/create?case_id=$caseId");
 
       final body = jsonEncode(
         CaseDocumentModel(
           publicData: publicData,
-          encryptedBlobUrl: downloadUrl,
+          encryptedAes: encryptedAes,
+          encryptedBlob: encryptedBlob,
           encryptedComments: encryptedComments,
-          encryptedAesKey: encryptedAesKey,
         ).toJson(),
       );
 

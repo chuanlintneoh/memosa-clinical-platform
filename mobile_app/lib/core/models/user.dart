@@ -32,17 +32,13 @@ class RegisterUser {
   final String fullName;
   final String email;
   final String password;
-  final String role;
-  final String? publicRsa;
-  final String? privateRsa;
+  final UserRole role;
 
   RegisterUser({
     required this.fullName,
     required this.email,
     required this.password,
     required this.role,
-    this.publicRsa,
-    this.privateRsa,
   });
 
   Map<String, dynamic> toJson() {
@@ -50,14 +46,8 @@ class RegisterUser {
       'full_name': fullName,
       'email': email,
       'password': password,
-      'role': role,
+      'role': role.toApiValue(),
     };
-
-    if (role == "clinician") {
-      data['public_rsa'] = publicRsa!;
-      data['private_rsa'] = privateRsa!;
-    }
-
     return data;
   }
 }

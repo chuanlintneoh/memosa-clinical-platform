@@ -1,194 +1,213 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:pointycastle/export.dart';
-import 'package:basic_utils/basic_utils.dart' as bu;
-import 'dart:math';
+// import 'package:collection/collection.dart';
 
 class CryptoUtils {
-  static AsymmetricKeyPair<RSAPublicKey, RSAPrivateKey> generateRSAKeyPair({
-    int bitLength = 2048,
-  }) {
-    final keyGen = RSAKeyGenerator()
-      ..init(
-        ParametersWithRandom(
-          RSAKeyGeneratorParameters(BigInt.parse('65537'), bitLength, 64),
-          _secureRandom(),
-        ),
-      );
-    return keyGen.generateKeyPair();
-  }
-
-  static String encodePublicKeyToPem(RSAPublicKey publicKey) {
-    // for storing new public keys
-    return bu.CryptoUtils.encodeRSAPublicKeyToPem(publicKey);
-  }
-
-  static RSAPublicKey decodePublicKeyFromPem(String publicPem) {
-    // for retrieving public keys
-    return bu.CryptoUtils.rsaPublicKeyFromPem(publicPem);
-  }
-
-  static String encodePrivateKeyToPem(RSAPrivateKey privateKey) {
-    // for storing new private keys
-    return bu.CryptoUtils.encodeRSAPrivateKeyToPem(privateKey);
-  }
-
-  static RSAPrivateKey decodePrivateKeyFromPem(String privatePem) {
-    // for retrieving private keys
-    return bu.CryptoUtils.rsaPrivateKeyFromPem(privatePem);
-  }
-
-  static String encryptPrivateKey(String privatePem, String password) {
-    // for storing new private keys securely
-    final key = _deriveKey(password);
-    final iv = _generateIV();
-    final cipher = CBCBlockCipher(AESEngine())
-      ..init(true, ParametersWithIV(KeyParameter(key), iv));
-
-    final padded = _pkcs7Pad(Uint8List.fromList(utf8.encode(privatePem)), 16);
-    final encrypted = _processBlocks(cipher, padded);
-
-    final result = Uint8List.fromList(iv + encrypted);
-    return base64Encode(result);
-  }
-
-  static String decryptPrivateKey(String encryptedPem, String password) {
-    // for retrieving private keys securely
-    final data = base64Decode(encryptedPem);
-    final iv = data.sublist(0, 16);
-    final ciphertext = data.sublist(16);
-
-    final key = _deriveKey(password);
-    final cipher = CBCBlockCipher(AESEngine())
-      ..init(false, ParametersWithIV(KeyParameter(key), iv));
-
-    final decrypted = _processBlocks(cipher, ciphertext);
-    final unpadded = _pkcs7Unpad(decrypted);
-    return utf8.decode(unpadded);
-  }
+  // Functions:
+  // generate aes key
+  // encrypt aes key with passphrase
+  // decrypt aes key with passphrase
+  // encrypt string (can be very long) using aes key (case data will be encoded to json string)
+  // decrypt string (can be very long) using aes key (case data will be decoded to json)
 
   static Uint8List generateAESKey() {
-    final keyBytes = _secureRandom().nextBytes(32); // 256-bit key
-    return Uint8List.fromList(keyBytes);
+    final rnd = Random.secure();
+    return Uint8List.fromList(List<int>.generate(32, (_) => rnd.nextInt(256)));
   }
 
-  static String encryptAESKey(Uint8List aesKey, RSAPublicKey publicKey) {
-    final cipher = OAEPEncoding(RSAEngine())
-      ..init(true, PublicKeyParameter<RSAPublicKey>(publicKey));
-    final encrypted = cipher.process(aesKey);
-    return base64Encode(encrypted);
-  }
-
-  static Uint8List decryptAESKey(
-    String encryptedKey,
-    RSAPrivateKey privateKey,
+  /// Encrypt AES key with passphrase (PBKDF2 + AES-CBC)
+  static Map<String, String> encryptAESKeyWithPassphrase(
+    Uint8List aesKey,
+    String passphrase,
   ) {
-    final encryptedBytes = base64Decode(encryptedKey);
-    final cipher = OAEPEncoding(RSAEngine())
-      ..init(false, PrivateKeyParameter<RSAPrivateKey>(privateKey));
-    final decrypted = cipher.process(encryptedBytes);
-    return Uint8List.fromList(decrypted);
+    final salt = _randomBytes(16);
+    final derivedKey = _deriveKey(
+      passphrase,
+      salt,
+      32,
+    ); // actual key to encrypt AES key that is derived from passphrase and salt
+    final iv = _randomBytes(16);
+
+    final cipherText = _aesCbcEncrypt(aesKey, derivedKey, iv);
+
+    return {
+      'ciphertext': base64Encode(cipherText),
+      'iv': base64Encode(iv),
+      'salt': base64Encode(salt),
+    };
   }
 
-  static String encryptCaseData(
-    Map<String, dynamic> caseData,
+  /// Decrypt AES key with passphrase
+  static Uint8List decryptAESKeyWithPassphrase(
+    String encryptedAESKeyB64,
+    String passphrase,
+    String saltB64,
+    String ivB64,
+  ) {
+    final encryptedAESKey = base64Decode(encryptedAESKeyB64);
+    final salt = base64Decode(saltB64);
+    final iv = base64Decode(ivB64);
+
+    final derivedKey = _deriveKey(passphrase, salt, 32);
+
+    return _aesCbcDecrypt(encryptedAESKey, derivedKey, iv);
+  }
+
+  /// Encrypt JSON string using AES key
+  static Map<String, String> encryptString(String plainText, Uint8List aesKey) {
+    // final jsonString = jsonEncode(jsonData);
+    final iv = _randomBytes(16);
+
+    final cipherText = _aesCbcEncrypt(
+      Uint8List.fromList(utf8.encode(plainText)),
+      aesKey,
+      iv,
+    );
+
+    return {'ciphertext': base64Encode(cipherText), 'iv': base64Encode(iv)};
+  }
+
+  /// Decrypt JSON string using AES key
+  static String decryptString(
+    String encryptedDataB64,
+    String ivB64,
     Uint8List aesKey,
   ) {
-    final iv = _generateIV();
-    final cipher = CBCBlockCipher(AESEngine())
-      ..init(true, ParametersWithIV(KeyParameter(aesKey), iv));
+    final encryptedData = base64Decode(encryptedDataB64);
+    final iv = base64Decode(ivB64);
 
-    final padded = _pkcs7Pad(
-      Uint8List.fromList(utf8.encode(jsonEncode(caseData))),
-      16,
+    final plainBytes = _aesCbcDecrypt(encryptedData, aesKey, iv);
+    final decryptedString = utf8.decode(plainBytes);
+
+    return decryptedString;
+    // return jsonDecode(jsonString);
+  }
+
+  // ======== Internal Helpers ========
+  static Uint8List _deriveKey(String passphrase, Uint8List salt, int length) {
+    final pbkdf2 = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64))
+      ..init(Pbkdf2Parameters(salt, 100000, length));
+    return pbkdf2.process(Uint8List.fromList(utf8.encode(passphrase)));
+  }
+
+  static Uint8List _aesCbcEncrypt(Uint8List data, Uint8List key, Uint8List iv) {
+    final cipher =
+        PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
+          ..init(
+            true,
+            PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(
+              ParametersWithIV<KeyParameter>(KeyParameter(key), iv),
+              null,
+            ),
+          );
+    return cipher.process(data);
+  }
+
+  static Uint8List _aesCbcDecrypt(Uint8List data, Uint8List key, Uint8List iv) {
+    final cipher =
+        PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
+          ..init(
+            false,
+            PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(
+              ParametersWithIV<KeyParameter>(KeyParameter(key), iv),
+              null,
+            ),
+          );
+    return cipher.process(data);
+  }
+
+  static Uint8List _randomBytes(int length) {
+    final rnd = Random.secure();
+    return Uint8List.fromList(
+      List<int>.generate(length, (_) => rnd.nextInt(256)),
     );
-    final encrypted = _processBlocks(cipher, padded);
-
-    final result = Uint8List.fromList(iv + encrypted);
-    return base64Encode(result);
-  }
-
-  static Map<String, dynamic> decryptCaseData(
-    String encryptedData,
-    Uint8List aesKey,
-  ) {
-    final data = base64Decode(encryptedData);
-    final iv = data.sublist(0, 16);
-    final ciphertext = data.sublist(16);
-
-    final cipher = CBCBlockCipher(AESEngine())
-      ..init(false, ParametersWithIV(KeyParameter(aesKey), iv));
-
-    final decrypted = _processBlocks(cipher, ciphertext);
-    final unpadded = _pkcs7Unpad(decrypted);
-    return jsonDecode(utf8.decode(unpadded));
-  }
-
-  static String encryptString(String data, Uint8List aesKey) {
-    final iv = _generateIV();
-    final cipher = CBCBlockCipher(AESEngine())
-      ..init(true, ParametersWithIV(KeyParameter(aesKey), iv));
-
-    final padded = _pkcs7Pad(Uint8List.fromList(utf8.encode(data)), 16);
-    final encrypted = _processBlocks(cipher, padded);
-
-    final result = Uint8List.fromList(iv + encrypted);
-    return base64Encode(result);
-  }
-
-  static String decryptString(String encryptedData, Uint8List aesKey) {
-    final data = base64Decode(encryptedData);
-    final iv = data.sublist(0, 16);
-    final ciphertext = data.sublist(16);
-
-    final cipher = CBCBlockCipher(AESEngine())
-      ..init(false, ParametersWithIV(KeyParameter(aesKey), iv));
-
-    final decrypted = _processBlocks(cipher, ciphertext);
-    final unpadded = _pkcs7Unpad(decrypted);
-    return utf8.decode(unpadded);
-  }
-
-  static SecureRandom _secureRandom() {
-    final secureRandom = FortunaRandom();
-    final seed = Uint8List.fromList(
-      List.generate(32, (i) => Random.secure().nextInt(256)),
-    );
-    secureRandom.seed(KeyParameter(seed));
-    return secureRandom;
-  }
-
-  static Uint8List _deriveKey(String password) {
-    final pbkdf2 = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64));
-    final salt = utf8.encode('memosa-salt');
-    pbkdf2.init(Pbkdf2Parameters(Uint8List.fromList(salt), 1000, 32));
-    return pbkdf2.process(utf8.encode(password));
-  }
-
-  static Uint8List _generateIV() {
-    final rng = Random.secure();
-    return Uint8List.fromList(List.generate(16, (_) => rng.nextInt(256)));
-  }
-
-  static Uint8List _processBlocks(BlockCipher cipher, Uint8List input) {
-    final output = Uint8List(input.length);
-    for (int offset = 0; offset < input.length;) {
-      offset += cipher.processBlock(input, offset, output, offset);
-    }
-    return output;
-  }
-
-  static Uint8List _pkcs7Pad(Uint8List input, int blockSize) {
-    final padLen = blockSize - (input.length % blockSize);
-    final padded = Uint8List(input.length + padLen)..setAll(0, input);
-    for (int i = input.length; i < padded.length; i++) {
-      padded[i] = padLen;
-    }
-    return padded;
-  }
-
-  static Uint8List _pkcs7Unpad(Uint8List input) {
-    final padLen = input.last;
-    return input.sublist(0, input.length - padLen);
   }
 }
+
+// void main() {
+//   final testPassword = "nothingbeatsajet2holiday";
+
+//   // Key generation + encryption + decryption flow
+//   final aes = CryptoUtils.generateAESKey();
+//   print("Generated AES Key: ${base64Encode(aes)}");
+//   final encryptAES = CryptoUtils.encryptAESKeyWithPassphrase(aes, testPassword);
+//   print("Encrypted AES Key: ${encryptAES['ciphertext']}");
+//   print("Salt: ${encryptAES['salt']}");
+//   print("IV: ${encryptAES['iv']}");
+//   final decryptAES = CryptoUtils.decryptAESKeyWithPassphrase(
+//     encryptAES['ciphertext']!,
+//     testPassword,
+//     encryptAES['salt']!,
+//     encryptAES['iv']!,
+//   );
+//   print("Decrypted AES Key: ${base64Encode(decryptAES)}");
+//   print("Keys match: ${base64Encode(aes) == base64Encode(decryptAES)}");
+//   print("");
+
+//   // String encryption + decryption flow
+//   final plainText = "Hello, World! I am Chuan Lin";
+//   print("Plain Text: $plainText");
+//   final encryptString = CryptoUtils.encryptString(plainText, aes);
+//   print("Encrypted String: ${encryptString['ciphertext']}");
+//   print("IV: ${encryptString['iv']}");
+//   final decryptString = CryptoUtils.decryptString(
+//     encryptString['ciphertext']!,
+//     encryptString['iv']!,
+//     aes,
+//   );
+//   print("Decrypted String: $decryptString");
+//   print("Strings match: ${plainText == decryptString}");
+//   print("");
+
+//   Uint8List generateDummyBytes(int sizeInKB) {
+//     final random = Random();
+//     return Uint8List.fromList(
+//       List<int>.generate(sizeInKB * 1024, (_) => random.nextInt(256)),
+//     );
+//   }
+
+//   // Case encryption + decryption flow
+//   final jsonData = {
+//     "address":
+//         "123 Example Street, Apartment 4B, Springfield, 11900, Example Country.",
+//     "age": "20",
+//     "attending_hospital": "Tan Tock Seng Hospital",
+//     "chief_complaint": "Persistent headache and dizziness",
+//     "consent_form": base64Encode(
+//       generateDummyBytes(100),
+//     ), // 100KB dummy consent form
+//     "dob": "2004-12-07T00:00:00Z",
+//     "ethnicity": "Chinese",
+//     "gender": "MALE",
+//     "idnum": "701204072039",
+//     "idtype": "NRIC",
+//     "lesion_clinical_presentation":
+//         "Small round lesion on the left forearm, approx. 2cm in diameter.",
+//     "medical_history": "No known chronic illnesses.",
+//     "medication_history": "Occasional use of paracetamol.",
+//     "name": "John Doe",
+//     "phonenum": "60123456789",
+//     "presenting_complaint_history":
+//         "Symptoms started two weeks ago, worsening over the past three days.",
+//     "images": List.generate(
+//       9,
+//       (_) => base64Encode(generateDummyBytes(200)),
+//     ), // 9 dummy 200KB images
+//   };
+//   // print("Original Case Data: $jsonData");
+//   final encryptCase = CryptoUtils.encryptString(jsonEncode(jsonData), aes);
+//   // print("Encrypted Case Data: ${encryptCase['encrypted_string']}");
+//   print("IV: ${encryptCase['iv']}");
+//   final decryptCase = CryptoUtils.decryptString(
+//     encryptCase['ciphertext']!,
+//     encryptCase['iv']!,
+//     aes,
+//   );
+//   // print("Decrypted Case Data: $decryptCase");
+//   print("Case data matches: ${jsonEncode(jsonData) == decryptCase}");
+//   final mapEquals = const DeepCollectionEquality().equals;
+//   print("Parsed matches: ${mapEquals(jsonData, jsonDecode(decryptCase))}");
+//   print("");
+// }

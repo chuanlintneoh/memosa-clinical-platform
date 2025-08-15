@@ -1,6 +1,5 @@
 from enum import Enum
 from pydantic import BaseModel, EmailStr
-from typing import Optional
 
 class UserRole(str, Enum):
     study_coordinator = "study_coordinator"
@@ -12,8 +11,6 @@ class RegisterUser(BaseModel):
     email: EmailStr
     password: str
     role: UserRole
-    public_rsa: Optional[str] = None
-    private_rsa: Optional[str] = None
 
 class LoginUser(BaseModel):
     email: EmailStr

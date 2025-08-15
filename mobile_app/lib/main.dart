@@ -12,6 +12,8 @@ import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/firebase_options.dart';
+import 'dart:math';
+import 'package:flutter/services.dart' show rootBundle;
 // import 'package:http/http.dart' as http;
 
 // void main() {
@@ -30,32 +32,25 @@ void main() async {
   // );
   // print(result);
 
-  WidgetsFlutterBinding.ensureInitialized();
+  // WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  var publicRsa;
-  var privateRsa;
   // Login user
-  try {
-    final result = await AuthService.loginUser(
-      user: LoginUser(
-        email: "studycoordinator1@example.com",
-        password: dotenv.env['PASSWORD'] ?? '',
-      ),
-    );
-    if (result != null) {
-      publicRsa = result['public_rsa'];
-      privateRsa = result['private_rsa'];
-    } else {
-      print("Login failed or no user data returned.");
-    }
-    print(result);
-  } catch (e) {
-    print("Error: $e");
-  }
+  // try {
+  //   final result = await AuthService.loginUser(
+  //     user: LoginUser(
+  //       email: "studycoordinator1@example.com",
+  //       password: dotenv.env['PASSWORD'] ?? '',
+  //     ),
+  //   );
+  //   print(result);
+  // } catch (e) {
+  //   print("Error: $e");
+  // }
 
   // Case creation
+  final imageBytes = await loadImageAsset("assets/tongue-cancer.jpg");
   DbManagerService.createCase(
-    caseId: "test",
+    caseId: "15082025test",
     publicData: PublicCaseModel(
       createdAt: DateTime.now(),
       createdBy: "test_user",
@@ -72,50 +67,40 @@ void main() async {
       additionalComments: "Test case for clinician",
     ),
     privateData: PrivateCaseModel(
-      address: "123 Test St",
+      address:
+          "123 Example Street, Apartment 4B, Springfield, 11900, Example Country.",
       age: "30",
-      attendingHospital: "Test Hospital",
-      chiefComplaint: "Test complaint",
-      consentForm: Uint8List.fromList(utf8.encode("Test consent form")),
+      attendingHospital: "Tan Tock Seng Hospital",
+      chiefComplaint: "Persistent headache and dizziness",
+      consentForm: generateDummyBytes(100),
       dob: DateTime(1993, 1, 1),
       ethnicity: "Chinese",
       gender: Gender.MALE,
-      idNum: "S1234567A",
+      idNum: "701204072039",
       idType: IdType.NRIC,
-      lesionClinicalPresentation: "Test presentation",
-      medicalHistory: "No known allergies",
-      medicationHistory: "No medications",
-      name: "Test User",
-      phoneNum: "12345678",
-      presentingComplaintHistory: "Test history",
-      images: List.generate(
-        9,
-        (_) => Uint8List.fromList(utf8.encode("Test image data")),
-      ),
+      lesionClinicalPresentation:
+          "Small round lesion on the left forearm, approx. 2cm in diameter.",
+      medicalHistory: "No known chronic illnesses.",
+      medicationHistory: "Occasional use of paracetamol.",
+      name: "John Doe",
+      phoneNum: "60123456789",
+      presentingComplaintHistory:
+          "Symptoms started two weeks ago, worsening over the past three days.",
+      images: List.generate(9, (_) => imageBytes),
     ),
-    systemRsa: dotenv.env['SYSTEM_PUBLIC_RSA'] ?? '',
   );
+}
 
-  // Generate shared RSA key pair
-  // var rsakeypair = CryptoUtils.generateRSAKeyPair(bitLength: 2048);
-  // var publicPem = CryptoUtils.encodePublicKeyToPem(rsakeypair.publicKey);
-  // print("Public Key PEM: $publicPem");
-  // var privatePem = CryptoUtils.encodePrivateKeyToPem(rsakeypair.privateKey);
-  // print(privatePem.contains('-----END PRIVATE KEY-----'));
-  // // print("Private Key PEM: $privatePem");
-  // var encryptedPrivatePem = CryptoUtils.encryptPrivateKey(
-  //   privatePem,
-  //   "MeMoSA2025",
-  // );
-  // print("Encrypted Private Key PEM: $encryptedPrivatePem");
-  // final response = await http.post(
-  //   Uri.parse("http://10.0.2.2:8000/auth/store-key"),
-  //   body: jsonEncode({
-  //     "public_rsa": publicPem,
-  //     "private_rsa": encryptedPrivatePem,
-  //   }),
-  // );
-  // print(response.body);
+Uint8List generateDummyBytes(int sizeInKB) {
+  final random = Random();
+  return Uint8List.fromList(
+    List<int>.generate(sizeInKB * 1024, (_) => random.nextInt(256)),
+  );
+}
+
+Future<Uint8List> loadImageAsset(String path) async {
+  final byteData = await rootBundle.load(path);
+  return byteData.buffer.asUint8List();
 }
 
 class MyApp extends StatelessWidget {

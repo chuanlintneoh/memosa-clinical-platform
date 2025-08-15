@@ -1,0 +1,8 @@
+albumentations
+fastapi
+numpy
+opencv-python-headless
+pillow
+torch
+torchvision
+uvicorn

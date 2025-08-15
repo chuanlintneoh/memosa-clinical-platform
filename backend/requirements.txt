@@ -1,5 +1,6 @@
 fastapi
 firebase-admin
+pillow
 pycryptodome
 pydantic[email]
 python-dateutil

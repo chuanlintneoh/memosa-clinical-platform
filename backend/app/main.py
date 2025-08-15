@@ -1,22 +1,22 @@
 # For debugging: print the full runtime file structure
-import subprocess
-print("=== FULL RUNTIME FILE STRUCTURE ===")
-try:
-    result = subprocess.run(["find", "/"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    print(result.stdout)
-except Exception as e:
-    print("Error running find:", e)
+# import subprocess
+# print("=== FULL RUNTIME FILE STRUCTURE ===")
+# try:
+#     result = subprocess.run(["find", "/"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+#     print(result.stdout)
+# except Exception as e:
+#     print("Error running find:", e)
 
-import os
-import uvicorn
 from fastapi import FastAPI, Request
-from app.api import auth, dbmanager, aiqueue
+from app.api.routes.auth import auth_router
+from app.api.routes.dbmanager import dbmanager_router
+from app.api.routes.aiqueue import aiqueue_router
 
 app = FastAPI()
 
-app.include_router(auth.router, prefix="/auth")
-app.include_router(dbmanager.router, prefix="/dbmanager")
-app.include_router(aiqueue.router, prefix="/aiqueue")
+app.include_router(auth_router, prefix="/auth")
+app.include_router(dbmanager_router, prefix="/dbmanager")
+app.include_router(aiqueue_router, prefix="/aiqueue")
 
 @app.get("/")
 def read_root(request: Request):

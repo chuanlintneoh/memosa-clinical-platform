@@ -5,9 +5,12 @@ import 'package:http/http.dart' as http;
 
 class StorageService {
   static Future<String> uploadEncryptedBlob({
-    required String encryptedBlob,
+    required String? encryptedBlob,
     required String fileName,
   }) async {
+    if (encryptedBlob == null) {
+      return "NULL";
+    }
     try {
       final encryptedBlobBytes = base64Decode(encryptedBlob);
       final storageRef = FirebaseStorage.instance.ref().child(
