@@ -4,17 +4,18 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 
 class StorageService {
-  static Future<String> uploadEncryptedBlob({
-    required String? encryptedBlob,
+  static Future<String> upload({
+    required String? encrypted,
     required String fileName,
+    required String path,
   }) async {
-    if (encryptedBlob == null) {
+    if (encrypted == null) {
       return "NULL";
     }
     try {
-      final encryptedBlobBytes = base64Decode(encryptedBlob);
+      final encryptedBlobBytes = base64Decode(encrypted);
       final storageRef = FirebaseStorage.instance.ref().child(
-        'encrypted_blobs/$fileName',
+        '$path/$fileName',
       );
 
       final uploadTask = await storageRef.putData(
@@ -25,20 +26,20 @@ class StorageService {
       final downloadUrl = await uploadTask.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      throw Exception('Failed to upload blob: $e');
+      throw Exception('Failed to upload: $e');
     }
   }
 
-  static Future<String> downloadEncryptedBlob(String downloadUrl) async {
+  static Future<String> download(String downloadUrl) async {
     try {
       final response = await http.get(Uri.parse(downloadUrl));
       if (response.statusCode == 200) {
         return base64Encode(response.bodyBytes);
       } else {
-        throw Exception('Failed to download blob: ${response.statusCode}');
+        throw Exception('Failed to download: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Failed to download blob: $e');
+      throw Exception('Failed to download: $e');
     }
   }
 }

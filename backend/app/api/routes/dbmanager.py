@@ -34,25 +34,39 @@ async def create_case(
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@dbmanager_router.get("/case/{case_id}")
+@dbmanager_router.get("/case/get/{case_id}")
 def get_case(case_id: str):
     return dbmanager._get_case_by_id(case_id)
 
-# @dbmanager_router.post("/case/edit")
-# def edit_case(request: Request, case_id: str = Query(...), updates: Dict[str, Any] = Query(...)):
-#     return dbmanager._edit_case_by_id(case_id, updates)
+@dbmanager_router.post("/case/edit")
+async def edit_case(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    case_id: str = Query(...)
+):
+    updates = await request.json()
+    background_tasks.add_task(dbmanager._edit_case_by_id, case_id, updates)
+    return JSONResponse(content={"case_id": case_id}, status_code=200)
 
-# @dbmanager_router.get("/cases/undiagnosed/{clinician_id}")
-# def get_undiagnosed_images(clinician_id: str):
-#     return dbmanager._get_undiagnosed_images(clinician_id)
+@dbmanager_router.get("/cases/undiagnosed/{clinician_id}")
+def get_undiagnosed_cases(clinician_id: str):
+    return dbmanager._get_undiagnosed_cases(clinician_id)
 
-# @dbmanager_router.post("/case/diagnose")
-# def diagnose_case(case_id: str, image_index: int, clinician_id: str, lesion_type: str, clinical_diagnosis: str, low_quality: bool = False):
-#     return dbmanager._submit_image_diagnosis(case_id, image_index, clinician_id, lesion_type, clinical_diagnosis, low_quality)
+@dbmanager_router.post("/case/diagnose")
+async def diagnose_case(
+    request:Request,
+    background_tasks: BackgroundTasks,
+    case_id: str = Query(...)
+):
+    body = await request.json()
+    diagnoses = body.get("diagnoses", [])
 
-# @dbmanager_router.get("/cases/all")
-# def get_all_cases():
-#     return dbmanager._get_all_cases()
+    background_tasks.add_task(dbmanager._submit_case_diagnosis, case_id, diagnoses)
+    return JSONResponse(content={"case_id": case_id}, status_code=200)
+
+@dbmanager_router.get("/cases/all")
+def get_all_cases():
+    return dbmanager._get_all_cases()
 
 # AIQueue flow:
 # 1. AIQueue receives new cases from DbManager and adds them to the queue

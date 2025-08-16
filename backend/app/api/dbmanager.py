@@ -5,25 +5,19 @@ import json
 from PIL import Image
 from app.core.crypto import CryptoUtils
 import requests
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from app.core.firebase import db
 from app.core.config import PASSWORD
 from google.cloud import firestore
 
 class DbManager:
-    def __init__(self, aiqueue, sync_interval_seconds: int = 600):
+    def __init__(self, aiqueue):
         self.aiqueue = aiqueue
         # self.new_cases: Dict[str, Dict[str, Any]] = {}
         self.pending_cases: Dict[str, Dict[str, Any]] = {}  # Data of cases that have already been sent to AIQueue
-        self.sync_interval_seconds = sync_interval_seconds
         # self.flush_interval_seconds = flush_interval_seconds
         # self.flush_maximum_cases = flush_maximum_cases
-        self._start_periodic_sync()
         # self._start_periodic_flush()
-
-    def _start_periodic_sync(self):
-        Timer(self.sync_interval_seconds, self._start_periodic_sync).start()
-        print(f"[DbManager] Periodic sync started every {self.sync_interval_seconds} seconds.")
 
     # def _start_periodic_flush(self):
     #     self._flush()
@@ -151,40 +145,56 @@ class DbManager:
 
     def _edit_case_by_id(self, case_id: str, updates: Dict[str, Any]):
         db.collection("cases").document(case_id).update(updates)
+        print(f"[DbManager] Updated case {case_id}.")
 
-    def _get_undiagnosed_images(self, clinician_id: str):
-        print(f"[DbManager] Retrieving undiagnosed images for clinician {clinician_id}...")
-        cases = db.collection("cases").where(f"diagnoses.{clinician_id}", "==", None).stream()
-        return [doc.to_dict() for doc in cases]
-    
-    def _submit_image_diagnosis(self, case_id: str, image_index: int, clinician_id: str, lesion_type: str, clinical_diagnosis: str, low_quality: bool = False):
-        print(f"[DbManager] Submitting image diagnosis for case {case_id}...")
+    def _get_undiagnosed_cases(self, clinician_id: str):
+        print(f"[DbManager] Retrieving undiagnosed cases for clinician {clinician_id}...")
+
+        cases = db.collection("cases").stream()
+        undiagnosed_cases = []
+
+        for doc in cases:
+            case_data = doc.to_dict()
+            diagnoses_list = case_data.get("diagnoses", [])
+
+            if any(clinician_id not in diag for diag in diagnoses_list):
+                undiagnosed_cases.append({
+                "case_id": doc.id,
+                **case_data
+            })
+                
+        print(f"[DbManager] Found {len(undiagnosed_cases)} undiagnosed cases for clinician {clinician_id}.")
+        return undiagnosed_cases
+
+    def _submit_case_diagnosis(self, case_id: str, diagnoses: List[Dict[str, Any]]):
+        print(f"[DbManager] Submitting case diagnosis for case {case_id}...")
         doc_ref = db.collection("cases").document(case_id)
         doc_snapshot = doc_ref.get()
+
         if not doc_snapshot.exists:
             print(f"[DbManager] Case {case_id} not found")
             return False
-        
+
         data = doc_snapshot.to_dict()
-        diagnoses = data.get("diagnoses", [])
+        existing_diagnoses = data.get("diagnoses", [])
 
-        if not (0 <= image_index < len(diagnoses)):
-            print(f"[DbManager] Image index {image_index} out of range")
-            return False
+        if len(existing_diagnoses) < len(diagnoses):
+            existing_diagnoses.extend([{} for _ in range(len(diagnoses) - len(existing_diagnoses))])
 
-        if clinician_id not in diagnoses[image_index]:
-            diagnoses[image_index][clinician_id] = {}
+        for idx, diag in enumerate(diagnoses):
+            if not isinstance(diag, dict):
+                continue
 
-        diagnoses[image_index][clinician_id].update({
-            "lesion_type": lesion_type,
-            "clinical_diagnosis": clinical_diagnosis,
-            "low_quality": low_quality,
-            "timestamp": firestore.SERVER_TIMESTAMP
-        })
+            for clinician_id, diag_data in diag.items():
+                existing_diagnoses[idx][clinician_id] = {
+                    "clinical_diagnosis": diag_data.get("clinical_diagnosis", ""),
+                    "lesion_type": diag_data.get("lesion_type", ""),
+                    "low_quality": diag_data.get("low_quality", False),
+                    # "timestamp": firestore.SERVER_TIMESTAMP, # Commented because of exception
+                }
 
-        doc_ref.update({"diagnoses": diagnoses})
-        print(f"[DbManager] Updated diagnosis for case {case_id} image {image_index} clinician {clinician_id}")
-        return True
+        doc_ref.update({"diagnoses": existing_diagnoses})
+        print(f"[DbManager] Updated {case_id} with {len(diagnoses)} diagnoses")
 
     def _get_all_cases(self):
         print(f"[DbManager] Retrieving all cases...")
