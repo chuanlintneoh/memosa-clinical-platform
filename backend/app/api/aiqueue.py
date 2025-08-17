@@ -2,7 +2,9 @@ import base64
 from io import BytesIO
 import requests
 from threading import Lock, Timer
-from typing import Any, Dict, Optional
+from typing import Any, Dict
+
+from app.core.config import AI_URL
 
 class AIQueue:
     def __init__(self, dbmanager, flush_interval_seconds: int = 3600, flush_maximum_cases: int = 1):
@@ -42,7 +44,6 @@ class AIQueue:
         
         print(f"[AIQueue] Flushing {len(flush_data)} new cases to AI for diagnosis...")
 
-        # TODO: implement actual call to AI diagnosis service
         all_images = []
         case_to_slice = {}
         for case_id, case_data in flush_data.items():
@@ -59,7 +60,7 @@ class AIQueue:
 
         try:
             response = requests.post(
-                url="http://localhost:8001/inference/predict",
+                url=f"{AI_URL}/inference/predict",
                 json={"images": image_payload},
                 timeout=60
             )

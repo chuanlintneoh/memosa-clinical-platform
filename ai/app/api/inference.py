@@ -6,16 +6,12 @@ from PIL import Image
 from torch.utils.data import DataLoader
 
 from app.core import model
+from app.core.config import MODEL, MODEL_PATH
 from app.core.dataloader import InferenceDataset
 
 router = APIRouter()
 
-model_path = (
-    "/models/CancerVOPMDVAll_effnetb2_ep30_lr1e-04_wd1e-03_20250801T011129_bp.pth"
-    if os.path.exists("/models/CancerVOPMDVAll_effnetb2_ep30_lr1e-04_wd1e-03_20250801T011129_bp.pth")
-    else "models/CancerVOPMDVAll_effnetb2_ep30_lr1e-04_wd1e-03_20250801T011129_bp.pth"
-)
-model = model.EfficientNetModel.load_from_checkpoint(model_path)
+model = model.EfficientNetModel.load_from_checkpoint(f"{MODEL_PATH}/{MODEL}")
 
 @router.post("/predict")
 async def predict(request: Request):

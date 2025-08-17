@@ -1,5 +1,5 @@
 import base64
-from threading import Timer
+# from threading import Timer
 from io import BytesIO
 import json
 from PIL import Image
