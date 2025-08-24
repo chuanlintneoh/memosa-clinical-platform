@@ -1,4 +1,7 @@
 ```
+# Create virtual env
+python -m venv venv-ai
+
 # Activate virtual env
 # - Before running FastAPI server (uvicorn)
 # - Before installing new packages
