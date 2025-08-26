@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
 from firebase_admin import auth, firestore
-from app.core.firebase import firebase_app, db
-from app.models.user import UserRole, RegisterUser
+
+from app.core.firebase import db
+from app.models.user import RegisterUser
 
 auth_router = APIRouter()
 

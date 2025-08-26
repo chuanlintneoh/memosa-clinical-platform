@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+// import 'package:http/http.dart' as http;
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/auth.dart';
@@ -12,9 +15,7 @@ import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/firebase_options.dart';
-import 'dart:math';
-import 'package:flutter/services.dart' show rootBundle;
-// import 'package:http/http.dart' as http;
+import 'package:open_filex/open_filex.dart';
 
 // void main() {
 //   runApp(const MyApp());
@@ -179,6 +180,10 @@ void main() async {
   // print(diagnoseResult);
 
   // Export mastersheet csv
+  // final mastersheet = await DbManagerService.exportMastersheet();
+  // print("Mastersheet saved to: ${mastersheet.path}");
+  // final result = await OpenFilex.open(mastersheet.path);
+  // print("Open file result: ${result.message}");
 }
 
 // Uint8List generateDummyBytes(int sizeInKB) {

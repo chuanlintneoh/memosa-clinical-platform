@@ -61,7 +61,10 @@
                 "ai_lesion_type": "NULL",
                 "biopsy_clinical_diagnosis": "",
                 "biopsy_lesion_type": "",
-                "biopsy_report_url": "",
+                "biopsy_report": {
+                    "url": "",
+                    "iv": ""
+                },
                 "coe_clinical_diagnosis": "",
                 "coe_lesion_type": ""
             }
@@ -197,7 +200,10 @@
                 "ai_lesion_type": "NULL",
                 "biopsy_clinical_diagnosis": "",
                 "biopsy_lesion_type": "",
-                "biopsy_report_url": "",
+                "biopsy_report": {
+                    "url": "",
+                    "iv": ""
+                },
                 "coe_clinical_diagnosis": "",
                 "coe_lesion_type": "",
                 "clinician1uid": {

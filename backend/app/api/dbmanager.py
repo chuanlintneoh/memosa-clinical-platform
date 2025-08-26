@@ -1,35 +1,23 @@
-import base64
-# from threading import Timer
-from io import BytesIO
-import json
-from PIL import Image
-from app.core.crypto import CryptoUtils
-import requests
-from typing import Any, Dict, List, Optional
-from app.core.firebase import db
-from app.core.config import PASSWORD
+from datetime import datetime
 from google.cloud import firestore
+from io import BytesIO
+from PIL import Image
+from typing import Any, Dict, List, Optional
+import base64
+import json
+import pandas as pd
+import requests
+
+from app.core.config import PASSWORD
+from app.core.crypto import CryptoUtils
+from app.core.firebase import db
 
 class DbManager:
     def __init__(self, aiqueue):
         self.aiqueue = aiqueue
-        # self.new_cases: Dict[str, Dict[str, Any]] = {}
         self.pending_cases: Dict[str, Dict[str, Any]] = {}  # Data of cases that have already been sent to AIQueue
-        # self.flush_interval_seconds = flush_interval_seconds
-        # self.flush_maximum_cases = flush_maximum_cases
-        # self._start_periodic_flush()
 
-    # def _start_periodic_flush(self):
-    #     self._flush()
-    #     Timer(self.flush_interval_seconds, self._start_periodic_flush).start()
-    #     print(f"[DbManager] Periodic flush started every {self.flush_interval_seconds} seconds.")
-
-    # def _check_cases_amount(self):
-    #     if len(self.new_cases) >= self.flush_maximum_cases:
-    #         print(f"[DbManager] Cache reached maximum cases ({self.flush_maximum_cases}).")
-    #         self._start_periodic_flush()
-
-    def _enqueue_ai_job(self, case_id: str, case_data: Dict[str, Any]):
+    def enqueue_ai_job(self, case_id: str, case_data: Dict[str, Any]):
         # 1. download encrypted blob from Firebase Storage
         # 2. decrypt blob using aes key
         # 3. extract 9 images from decrypted blob in order
@@ -115,27 +103,8 @@ class DbManager:
             print(f"[DbManager] Batch wrote {len(new_cases)} cases to Firestore.")
         except Exception as e:
             print(f"[DbManager] Error batch writing cases: {str(e)}")
-    
-    # def _flush(self):
-    #     if len(self.new_cases) == 0:
-    #         print("[DbManager] No cases to flush.")
-    #         return
-        
-    #     print(f"[DbManager] Flushing {len(self.new_cases)} cases to Firestore...")
-    #     try:
-    #         batch = db.batch()
-    #         for case_id, case_data in self.new_cases.items():
-    #             case_data["submitted_at"] = firestore.SERVER_TIMESTAMP
-    #             doc_ref = db.collection("cases").document(case_id)
-    #             batch.set(doc_ref, case_data)
-    #         batch.commit()
-    #         print(f"[DbManager] Flushed {len(self.new_cases)} cases to Firestore.")
-    #         self.new_cases.clear()
-    #         print(f"[DbManager] Cleared new cases cache after flush. {len(self.new_cases)} cases in cache.")
-    #     except Exception as e:
-    #         print(f"[DbManager] Error flushing cases: {str(e)}")
 
-    def _get_case_by_id(self, case_id: str) -> Optional[Dict]:
+    def get_case_by_id(self, case_id: str) -> Optional[Dict]:
         doc = db.collection("cases").document(case_id).get()
         if doc.exists:
             print(f"[DbManager] Retrieved case {case_id} from Firestore.")
@@ -143,11 +112,11 @@ class DbManager:
         print(f"[DbManager] Case {case_id} not found in Firestore.")
         return None
 
-    def _edit_case_by_id(self, case_id: str, updates: Dict[str, Any]):
+    def edit_case_by_id(self, case_id: str, updates: Dict[str, Any]):
         db.collection("cases").document(case_id).update(updates)
         print(f"[DbManager] Updated case {case_id}.")
 
-    def _get_undiagnosed_cases(self, clinician_id: str):
+    def get_undiagnosed_cases(self, clinician_id: str):
         print(f"[DbManager] Retrieving undiagnosed cases for clinician {clinician_id}...")
 
         cases = db.collection("cases").stream()
@@ -166,7 +135,7 @@ class DbManager:
         print(f"[DbManager] Found {len(undiagnosed_cases)} undiagnosed cases for clinician {clinician_id}.")
         return undiagnosed_cases
 
-    def _submit_case_diagnosis(self, case_id: str, diagnoses: List[Dict[str, Any]]):
+    def submit_case_diagnosis(self, case_id: str, diagnoses: List[Dict[str, Any]]):
         print(f"[DbManager] Submitting case diagnosis for case {case_id}...")
         doc_ref = db.collection("cases").document(case_id)
         doc_snapshot = doc_ref.get()
@@ -196,9 +165,130 @@ class DbManager:
         doc_ref.update({"diagnoses": existing_diagnoses})
         print(f"[DbManager] Updated {case_id} with {len(diagnoses)} diagnoses")
 
-    def _get_all_cases(self):
+    def get_all_cases(self):
         print(f"[DbManager] Retrieving all cases...")
         docs = db.collection("cases").stream()
-        all_cases = [doc.to_dict() for doc in docs]
+        all_cases = []
+        for doc in docs:
+            case = doc.to_dict()
+            case["case_id"] = doc.id
+            all_cases.append(case)
         print(f"[DbManager] Retrieved {len(all_cases)} cases from Firestore.")
         return all_cases
+
+    def export_mastersheet(self):
+        print(f"[DbManager] Exporting mastersheet...")
+        cases = self.get_all_cases()
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+
+        def _process_case(case: dict) -> dict:
+            biopsy_lesion_type = case.get("biopsy_lesion_type")
+            coe_lesion_type = case.get("coe_lesion_type")
+            biopsy_clinical_diagnosis = case.get("biopsy_clinical_diagnosis")
+            coe_clinical_diagnosis = case.get("coe_clinical_diagnosis")
+
+            biopsy_agree_with_coe = "NULL"
+
+            if biopsy_lesion_type and biopsy_lesion_type != "NULL" and coe_lesion_type and coe_lesion_type != "NULL":
+                biopsy_agree_with_coe = "YES" if biopsy_lesion_type == coe_lesion_type else "NO"
+                if biopsy_clinical_diagnosis and biopsy_clinical_diagnosis != "NULL" and coe_clinical_diagnosis and coe_clinical_diagnosis != "NULL":
+                    biopsy_agree_with_coe = (
+                        "YES"
+                        if (biopsy_lesion_type == coe_lesion_type and biopsy_clinical_diagnosis == coe_clinical_diagnosis)
+                        else "NO"
+                    )
+            case["biopsy_agree_with_coe"] = biopsy_agree_with_coe
+            return case
+
+        rows = []
+        clinician_mapping = {}
+        clinician_counter = 0
+
+        for case in cases:
+            for diagnose in case.get("diagnoses", []):
+                for key, val in diagnose.items():
+                    if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality"]):
+                        uid = key
+                        if uid not in clinician_mapping:
+                            clinician_counter += 1
+                            clinician_mapping[uid] = f"clinician{clinician_counter:02d}"
+        print(f"[DbManager] Mapped {len(clinician_mapping)} clinicians.")
+
+        for case in cases:
+            base = {
+                "case_id": case.get("case_id"),
+                "created_at": case.get("created_at"),
+                "created_by": case.get("created_by"),
+                "submitted_at": case.get("submitted_at"),
+                "alcohol": case.get("alcohol"),
+                "alcohol_duration": case.get("alcohol_duration"),
+                "betel_quid": case.get("betel_quid"),
+                "betel_quid_duration": case.get("betel_quid_duration"),
+                "smoking": case.get("smoking"),
+                "smoking_duration": case.get("smoking_duration"),
+                "oral_hygiene_products_used": case.get("oral_hygiene_products_used"),
+                "oral_hygiene_product_type_used": case.get("oral_hygiene_product_type_used"),
+                "sls_containing_toothpaste": case.get("sls_containing_toothpaste"),
+                "sls_containing_toothpaste_used": case.get("sls_containing_toothpaste_used")
+            }
+
+            diagnoses = case.get("diagnoses", [])
+            if not diagnoses:
+                row = base.copy()
+                for i in range(9):
+                    row.update({
+                        "image_index": i,
+                        "ai_lesion_type": "NULL",
+                        "biopsy_clinical_diagnosis": "NULL",
+                        "biopsy_lesion_type": "NULL",
+                        "coe_clinical_diagnosis": "NULL",
+                        "coe_lesion_type": "NULL",
+                        "biopsy_agree_with_coe": "NULL",
+                    })
+                    for clinician in clinician_mapping.values():
+                        row[f"{clinician}_lesion_type"] = "NULL"
+                        row[f"{clinician}_clinical_diagnosis"] = "NULL"
+                        row[f"{clinician}_low_quality"] = "NULL"
+                    rows.append(row)
+            else:
+                for i, diagnose in enumerate(diagnoses):
+                    row = base.copy()
+                    processed = _process_case(diagnose)
+                    row.update({
+                        "image_index": i,
+                        "ai_lesion_type": processed.get("ai_lesion_type", "NULL"),
+                        "biopsy_clinical_diagnosis": processed.get("biopsy_clinical_diagnosis", "NULL"),
+                        "biopsy_lesion_type": processed.get("biopsy_lesion_type", "NULL"),
+                        "coe_clinical_diagnosis": processed.get("coe_clinical_diagnosis", "NULL"),
+                        "coe_lesion_type": processed.get("coe_lesion_type", "NULL"),
+                        "biopsy_agree_with_coe": processed.get("biopsy_agree_with_coe", "NULL")
+                    })
+                    for uid, clinician in clinician_mapping.items():
+                        if uid in diagnose:
+                            cdata = diagnose[uid]
+                            row[f"{clinician}_lesion_type"] = cdata.get("lesion_type", "NULL")
+                            row[f"{clinician}_clinical_diagnosis"] = cdata.get("clinical_diagnosis", "NULL")
+                            row[f"{clinician}_low_quality"] = cdata.get("low_quality", "NULL")
+                        else:
+                            row[f"{clinician}_lesion_type"] = "NULL"
+                            row[f"{clinician}_clinical_diagnosis"] = "NULL"
+                            row[f"{clinician}_low_quality"] = "NULL"
+                    rows.append(row)
+
+        mastersheet_df = pd.DataFrame(rows)
+        print(f"[DbManager] Exported master sheet with {len(mastersheet_df)} rows and {len(mastersheet_df.columns)} columns to a Pandas df.")
+
+        mapping_rows = [{"clinician": cname, "clinician_uid": uid} for uid, cname in clinician_mapping.items()]
+        mapping_df = pd.DataFrame(mapping_rows)
+        print(f"[DbManager] Exported clinician mappings with {len(mapping_df)} rows and {len(mapping_df.columns)} columns to a Pandas df.")
+
+        for col in mastersheet_df.select_dtypes(include=["datetimetz"]).columns:
+            mastersheet_df[col] = mastersheet_df[col].dt.tz_localize(None)
+
+        buf = BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            mastersheet_df.to_excel(writer, index=True, sheet_name="mastersheet")
+            mapping_df.to_excel(writer, index=True, sheet_name="clinicians")
+        print(f"[DbManager] Written master sheet and clinician mapping to Excel buffer.")
+        buf.seek(0)
+        return timestamp, buf

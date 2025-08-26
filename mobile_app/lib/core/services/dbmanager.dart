@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
+import 'package:path_provider/path_provider.dart';
 // import 'package:uuid/uuid.dart';
 
 class DbManagerService {
@@ -285,7 +287,38 @@ class DbManagerService {
     }
   }
 
-  // static Future<List<Map<String, dynamic>>> exportCases() async {
-  //   // Admin exports mastersheet csv
-  // }
+  static Future<File> exportMastersheet() async {
+    // Admin exports mastersheet csv
+    try {
+      final url = Uri.parse("$_baseUrl/cases/export");
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          "Failed to download mastersheet: ${response.statusCode}",
+        );
+      }
+
+      final contentDisposition = response.headers['content-disposition'];
+      String filename = "mastersheet.xlsx";
+      if (contentDisposition != null) {
+        final regex = RegExp(r'filename="?([^"]+)"?');
+        final match = regex.firstMatch(contentDisposition);
+        if (match != null) {
+          filename = match.group(1)!;
+        }
+      }
+
+      filename = filename.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+
+      final dir = await getExternalStorageDirectory();
+      final file = File("${dir!.path}/$filename");
+
+      await file.writeAsBytes(response.bodyBytes);
+
+      return file;
+    } catch (e) {
+      throw Exception("Error exporting mastersheet: $e");
+    }
+  }
 }

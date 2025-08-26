@@ -1,7 +1,8 @@
 from dateutil import parser
 from fastapi import APIRouter, BackgroundTasks, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Any, Dict
+
 from app.api.bootstrap import dbmanager
 
 dbmanager_router = APIRouter()
@@ -24,10 +25,9 @@ async def create_case(
         
         # 3. store case in cache
         dbmanager.pending_cases[case_id] = data
-        # dbmanager._check_cases_amount()
 
         # 4. queue job for AI diagnosis
-        background_tasks.add_task(dbmanager._enqueue_ai_job, case_id, data)
+        background_tasks.add_task(dbmanager.enqueue_ai_job, case_id, data)
 
         return JSONResponse(content={"case_id": case_id}, status_code=200)
 
@@ -36,7 +36,7 @@ async def create_case(
 
 @dbmanager_router.get("/case/get/{case_id}")
 def get_case(case_id: str):
-    return dbmanager._get_case_by_id(case_id)
+    return dbmanager.get_case_by_id(case_id)
 
 @dbmanager_router.post("/case/edit")
 async def edit_case(
@@ -45,12 +45,12 @@ async def edit_case(
     case_id: str = Query(...)
 ):
     updates = await request.json()
-    background_tasks.add_task(dbmanager._edit_case_by_id, case_id, updates)
+    background_tasks.add_task(dbmanager.edit_case_by_id, case_id, updates)
     return JSONResponse(content={"case_id": case_id}, status_code=200)
 
 @dbmanager_router.get("/cases/undiagnosed/{clinician_id}")
 def get_undiagnosed_cases(clinician_id: str):
-    return dbmanager._get_undiagnosed_cases(clinician_id)
+    return dbmanager.get_undiagnosed_cases(clinician_id)
 
 @dbmanager_router.post("/case/diagnose")
 async def diagnose_case(
@@ -61,12 +61,21 @@ async def diagnose_case(
     body = await request.json()
     diagnoses = body.get("diagnoses", [])
 
-    background_tasks.add_task(dbmanager._submit_case_diagnosis, case_id, diagnoses)
+    background_tasks.add_task(dbmanager.submit_case_diagnosis, case_id, diagnoses)
     return JSONResponse(content={"case_id": case_id}, status_code=200)
 
 @dbmanager_router.get("/cases/all")
 def get_all_cases():
-    return dbmanager._get_all_cases()
+    return dbmanager.get_all_cases()
+
+@dbmanager_router.get("/cases/export")
+def export_mastersheet():
+    timestamp, buf = dbmanager.export_mastersheet()
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=mastersheet_{timestamp}.xlsx"}
+    )
 
 # AIQueue flow:
 # 1. AIQueue receives new cases from DbManager and adds them to the queue

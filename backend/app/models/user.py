@@ -12,6 +12,6 @@ class RegisterUser(BaseModel):
     password: str
     role: UserRole
 
-class LoginUser(BaseModel):
-    email: EmailStr
-    password: str
+# class LoginUser(BaseModel):
+#     email: EmailStr
+#     password: str

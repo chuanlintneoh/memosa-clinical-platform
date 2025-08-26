@@ -1,13 +1,5 @@
-# For debugging: print the full runtime file structure
-# import subprocess
-# print("=== FULL RUNTIME FILE STRUCTURE ===")
-# try:
-#     result = subprocess.run(["find", "/"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-#     print(result.stdout)
-# except Exception as e:
-#     print("Error running find:", e)
-
 from fastapi import FastAPI, Request
+
 from app.api.routes.auth import auth_router
 from app.api.routes.dbmanager import dbmanager_router
 from app.api.routes.aiqueue import aiqueue_router

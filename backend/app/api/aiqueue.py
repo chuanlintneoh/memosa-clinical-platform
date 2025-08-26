@@ -1,8 +1,8 @@
-import base64
 from io import BytesIO
-import requests
 from threading import Lock, Timer
 from typing import Any, Dict
+import base64
+import requests
 
 from app.core.config import AI_URL
 
@@ -10,7 +10,6 @@ class AIQueue:
     def __init__(self, dbmanager, flush_interval_seconds: int = 3600, flush_maximum_cases: int = 1):
         self.dbmanager = dbmanager
         self._new_cases: Dict[str, Dict[str, Any]] = {} # Cases waiting to be flushed
-        # self.pending_cases: Dict[str, Dict[str, Any]] = {} # Cases that are flushed waiting to be returned
         self._flush_interval_seconds = flush_interval_seconds
         self._flush_maximum_cases = flush_maximum_cases
         self._lock = Lock()
@@ -18,7 +17,9 @@ class AIQueue:
 
     def _start_periodic_flush(self):
         self._flush()
-        Timer(self._flush_interval_seconds, self._start_periodic_flush).start()
+        t = Timer(self._flush_interval_seconds, self._start_periodic_flush)
+        t.daemon = True
+        t.start()
         print(f"[AIQueue] Periodic flush started every {self._flush_interval_seconds} seconds.")
 
     def receive_new_case(self, case_id: str, images):

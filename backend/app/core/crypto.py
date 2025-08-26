@@ -1,8 +1,8 @@
-import base64
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Util.Padding import unpad
+import base64
 
 class CryptoUtils:
     @staticmethod
