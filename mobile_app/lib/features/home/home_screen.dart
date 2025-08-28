@@ -15,7 +15,14 @@ class HomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute<ProfileScreen>(
-                  builder: (context) => ProfileScreen(),
+                  builder: (context) => ProfileScreen(
+                    providers: [EmailAuthProvider()],
+                    actions: [
+                      SignedOutAction((context) {
+                        Navigator.of(context).popUntil((route) => route.isFirst);
+                      }),
+                    ],
+                  ),
                 ),
               );
             },
