@@ -11,7 +11,7 @@ class PatientCaseScreen extends StatefulWidget {
 }
 
 class _PatientCaseScreenState extends State<PatientCaseScreen>
-    with AutomaticKeepAliveClientMixin, TickerProviderStateMixin {
+    with AutomaticKeepAliveClientMixin<PatientCaseScreen>, TickerProviderStateMixin {
   late PageController _pageViewController;
   late TabController _tabController;
   int _currentPageIndex = 0;
@@ -28,6 +28,8 @@ class _PatientCaseScreenState extends State<PatientCaseScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Patient Case'), centerTitle: true),
       body: PageView(
