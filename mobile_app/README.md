@@ -46,16 +46,14 @@ lib/
 ├── app/                          # Global app-wide config
 │   ├── constants/                # App-wide constants
 │   └── theme/                    # App theme (colors, typography)
-├── config/                       # Firebase & API config
-│   └── firebase_config.dart
 ├── core/                         # Core utilities
 │   ├── services/                 # Firebase, API, Storage services
-│   │   ├── auth_service.dart
-│   │   ├── storage_service.dart
-│   │   └── api_service.dart
+│   │   ├── auth.dart
+│   │   ├── dbmanager.dart
+│   │   └── storage.dart
 │   ├── models/                   # Data models
-│   │   ├── user_model.dart
-│   │   └── case_model.dart
+│   │   ├── user.dart
+│   │   └── case.dart
 │   └── utils/                    # Shared helper functions
 ├── features/                     # Split by feature
 │   ├── auth/                     # Auth: login/register/logout
