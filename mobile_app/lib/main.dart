@@ -18,9 +18,8 @@ import 'package:mobile_app/features/auth/auth_gate.dart';
 import 'package:mobile_app/firebase_options.dart';
 import 'package:open_filex/open_filex.dart';
 
-
 void main() async {
-  //await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: ".env");
 
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -223,7 +222,9 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Color.fromARGB(255, 26, 191, 223)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Color.fromARGB(255, 26, 191, 223),
+        ),
       ),
       home: const AuthGate(clientId: ""),
     );
