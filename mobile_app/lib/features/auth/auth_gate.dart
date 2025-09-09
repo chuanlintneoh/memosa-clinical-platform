@@ -1,46 +1,59 @@
-import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider; // Add this import
-import 'package:firebase_ui_auth/firebase_ui_auth.dart';                  // And this import
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'login_screen.dart';
 import '../home/home_screen.dart';
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key, required this.clientId});
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
 
-  final String clientId;
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  String? _userId;
+  String? _email;
+  String? _role;
+  String? _name;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLogin();
+  }
+
+  Future<void> _checkLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString("userId");
+    final email = prefs.getString("email");
+    final role = prefs.getString("role");
+    final name = prefs.getString("name");
+    setState(() {
+      _userId = userId;
+      _email = email;
+      _role = role;
+      _name = name;
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // listen to FirebaseAuth's authStateChanges to determine whether the user
-    // is authenticated (go to home screen) or not (display a sign-in screen).
-    return StreamBuilder<User?>(                                       // Modify from here...
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return SignInScreen(
-            providers: [EmailAuthProvider()],
-            headerBuilder: (context, constraints, shrinkOffset) {
-              return AspectRatio(
-                aspectRatio: 1,
-                child: Image.asset('assets/images/logo_crmy.webp'),
-              );
-            },
-            subtitleBuilder: (context, action) {
-              return action == AuthAction.signIn
-                  ? Text("Mouth cancer screening - anywhere and anytime")
-                  : Text("Join us in protecting your oral health");
-            },
-            footerBuilder: (context, action) {
-              return Text(
-                'By signing in, you agree to our terms and conditions.',
-                textAlign: TextAlign.center,
-              );
-            },
-          );
-        }
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-        return const HomeScreen();
-      },
-    );                                                                 // To here.
+    if (_role == null) {
+      return const LoginScreen();
+    }
+
+    return HomeScreen(
+      userId: _userId!,
+      email: _email!,
+      role: _role!,
+      name: _name!,
+    );
   }
 }

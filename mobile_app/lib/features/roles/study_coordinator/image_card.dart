@@ -21,14 +21,12 @@ class ImageCard extends StatelessWidget {
             title!,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium,
-            maxLines: 1,
+            maxLines: 2,
           ),
         Expanded(
           child: InkWell(
             onTap: onTap,
             child: Container(
-              // Add a small margin to avoid the border line being clipped by
-              // parent container.
               margin: EdgeInsets.all(1.0),
               child: DottedBorder(
                 options: RoundedRectDottedBorderOptions(

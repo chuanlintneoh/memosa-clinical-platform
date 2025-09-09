@@ -15,6 +15,8 @@ import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/features/auth/auth_gate.dart';
+import 'package:mobile_app/features/auth/login_screen.dart';
+import 'package:mobile_app/features/auth/register_screen.dart';
 import 'package:mobile_app/firebase_options.dart';
 import 'package:open_filex/open_filex.dart';
 
@@ -22,12 +24,6 @@ void main() async {
   await dotenv.load(fileName: ".env");
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // runApp(const MyApp());
-
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   runApp(const MyApp());
 
   // Register user
@@ -209,7 +205,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'MeMoSA Clinical Platform',
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -230,7 +226,12 @@ class MyApp extends StatelessWidget {
           seedColor: Color.fromARGB(255, 26, 191, 223),
         ),
       ),
-      home: const AuthGate(clientId: ""),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const AuthGate(),
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+      },
     );
   }
 }
