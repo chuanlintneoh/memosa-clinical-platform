@@ -27,6 +27,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _error = null;
     });
 
+    if (_passwordController.text.trim() !=
+        _confirmPasswordController.text.trim()) {
+      setState(() {
+        _loading = false;
+        _error = "Passwords do not match";
+      });
+      return;
+    }
+
     try {
       final result = await AuthService.registerUser(
         fullName: _nameController.text.trim(),
@@ -35,10 +44,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: _role!,
       );
 
-      Navigator.pop(context); // go back to login
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Registration successful, please log in")),
-      );
+      if (result.containsKey("uid") &&
+          result.containsKey("email") &&
+          result.containsKey("name") &&
+          result.containsKey("role")) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Registration successful, please log in"),
+          ),
+        );
+      } else {
+        setState(() => _error = "Registration failed");
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

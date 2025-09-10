@@ -37,10 +37,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case "study_coordinator":
         return [
           _buildNavButton(Icons.drafts, "Draft Cases"),
-          _buildNavButton(Icons.edit, "Edit Cases"),
+          _buildNavButton(Icons.edit, "Edit Case"),
         ];
       case "clinician":
-        return [_buildNavButton(Icons.search, "Diagnose Cases")];
+        return [_buildNavButton(Icons.search, "Undiagnosed Cases")];
       case "admin":
         return [_buildNavButton(Icons.file_download, "Export Mastersheet")];
       default:
@@ -62,13 +62,13 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(builder: (_) => const DraftCasesScreen()),
             );
             break;
-          case "Edit Cases":
+          case "Edit Case":
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const PageNotFoundScreen()),
+              MaterialPageRoute(builder: (_) => const EditCaseScreen()),
             );
             break;
-          case "Diagnose Cases":
+          case "Undiagnosed Cases":
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const PageNotFoundScreen()),
@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 60),
                   Expanded(
                     child: Align(
                       alignment: Alignment.topCenter,
