@@ -1,12 +1,11 @@
 // List of case drafts saved locally, button for creating new case draft
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-import 'create_case.dart';
-import '../../../core/services/draft.dart';
+import 'package:flutter/material.dart';
+import 'package:mobile_app/features/roles/study_coordinator/create_case.dart';
+import 'package:mobile_app/core/services/draft.dart';
 
 class DraftCasesScreen extends StatefulWidget {
-  const DraftCasesScreen({Key? key}) : super(key: key);
+  const DraftCasesScreen({super.key});
 
   @override
   State<DraftCasesScreen> createState() => _DraftCasesScreenState();

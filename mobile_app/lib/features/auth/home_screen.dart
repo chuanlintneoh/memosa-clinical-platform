@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/features/roles/screens.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../roles/screens.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userId;
@@ -71,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
           case "Undiagnosed Cases":
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const PageNotFoundScreen()),
+              MaterialPageRoute(builder: (_) => const UndiagnosedCasesScreen()),
             );
             break;
           case "Export Mastersheet":

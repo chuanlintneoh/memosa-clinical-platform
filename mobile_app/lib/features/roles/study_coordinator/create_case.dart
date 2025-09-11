@@ -1,15 +1,15 @@
 // Used for create new case and edit case draft, can choose to delete draft / save draft / submit
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:uuid/uuid.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-import '../../../core/models/case.dart';
-import 'image_card.dart';
-import '../../../core/services/dbmanager.dart';
+import 'package:mobile_app/core/models/case.dart';
+import 'package:mobile_app/core/services/dbmanager.dart';
+import 'package:mobile_app/features/roles/study_coordinator/image_card.dart';
+import 'package:uuid/uuid.dart';
 
 class CreateCaseScreen extends StatefulWidget {
   final Map<String, dynamic>? draft;
@@ -380,7 +380,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
-  void _pickImage(int index) async {
+  Future<void> _pickImage(int index) async {
     final XFile? pickedImage = await _picker.pickImage(
       source: ImageSource.camera,
     );

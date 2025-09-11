@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/features/auth/home_screen.dart';
+import 'package:mobile_app/features/auth/login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'login_screen.dart';
-import '../home/home_screen.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});

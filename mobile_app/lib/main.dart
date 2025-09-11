@@ -1,24 +1,24 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:math';
+// import 'dart:convert';
+// import 'dart:io';
+// import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
+// import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+// import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 // import 'package:http/http.dart' as http;
-import 'package:mobile_app/core/models/case.dart';
-import 'package:mobile_app/core/models/user.dart';
-import 'package:mobile_app/core/services/auth.dart';
-import 'package:mobile_app/core/services/dbmanager.dart';
-import 'package:mobile_app/core/services/storage.dart';
-import 'package:mobile_app/core/utils/crypto.dart';
+// import 'package:mobile_app/core/models/case.dart';
+// import 'package:mobile_app/core/models/user.dart';
+// import 'package:mobile_app/core/services/auth.dart';
+// import 'package:mobile_app/core/services/dbmanager.dart';
+// import 'package:mobile_app/core/services/storage.dart';
+// import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/features/auth/auth_gate.dart';
 import 'package:mobile_app/features/auth/login_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
 import 'package:mobile_app/firebase_options.dart';
-import 'package:open_filex/open_filex.dart';
+// import 'package:open_filex/open_filex.dart';
 
 void main() async {
   await dotenv.load(fileName: ".env");

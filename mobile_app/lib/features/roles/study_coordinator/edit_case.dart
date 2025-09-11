@@ -1,16 +1,16 @@
 // Search and edit / add ground truth for existing case in database
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:mobile_app/core/models/case.dart';
+import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:file_picker/file_picker.dart';
-
-import '../../../core/services/dbmanager.dart';
-import 'package:mobile_app/core/models/case.dart';
 
 class EditCaseScreen extends StatefulWidget {
   const EditCaseScreen({super.key});
@@ -84,7 +84,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
 
       if (result.containsKey("error")) {
         setState(() {
-          _errorMessage = result["error"];
+          _errorMessage = "Case not found.";
           _searchResult = null;
         });
       } else {
@@ -862,13 +862,12 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Case updated successfully")),
         );
+        _resetState();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Unexpected response from server")),
         );
       }
-
-      _resetState();
     } catch (e) {
       ScaffoldMessenger.of(
         context,
