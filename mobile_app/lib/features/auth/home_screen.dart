@@ -76,7 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
           case "Export Mastersheet":
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const PageNotFoundScreen()),
+              MaterialPageRoute(
+                builder: (_) => const ExportMastersheetScreen(),
+              ),
             );
             break;
           default:
@@ -86,9 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
             );
             break;
         }
-        // ScaffoldMessenger.of(
-        //   context,
-        // ).showSnackBar(SnackBar(content: Text("Clicked $label")));
       },
     );
   }

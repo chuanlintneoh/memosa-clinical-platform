@@ -1,16 +1,26 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.cloud import firestore
 from io import BytesIO
+from pathlib import Path
 from PIL import Image
+# from sendgrid import SendGridAPIClient
+# from sendgrid.helpers.mail import Attachment, Disposition, FileContent, FileName, FileType, Mail
 from typing import Any, Dict, List, Optional
 import base64
 import json
 import pandas as pd
+import pyzipper
 import requests
+import secrets
+import string
+import tempfile
+import zipfile
 
+from app.api.storage import Storage
 from app.core.config import PASSWORD
+# from app.core.config import SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL
 from app.core.crypto import CryptoUtils
-from app.core.firebase import db
+from app.core.firebase import bucket, db
 
 class DbManager:
     def __init__(self, aiqueue):
@@ -175,11 +185,45 @@ class DbManager:
             all_cases.append(case)
         print(f"[DbManager] Retrieved {len(all_cases)} cases from Firestore.")
         return all_cases
+    
+    async def export_bundle(
+        self,
+        include_all: bool = False,
+        signed_url: bool = False,
+        # email: Optional[str] = None
+    ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
 
-    def export_mastersheet(self):
-        print(f"[DbManager] Exporting mastersheet...")
+            timestamp, buf, zip_path = await self._process_bundle(
+                base_dir=base_dir,
+                include_all=include_all
+            )
+
+            if not signed_url:
+                return buf, timestamp
+            else:
+                encrypted_path = zip_path.with_suffix('.encrypted.zip')
+                password = self._encrypt_bundle(zip_path, encrypted_path)
+                url = self._upload_bundle(encrypted_path)
+                # if email:
+                    # self._email_bundle(email, timestamp, zip_path)
+                return url, password
+    
+    async def _process_bundle(self, base_dir: Path, include_all: bool = False):
+        print(f"[DbManager] Processing bundle (include_all={include_all})...")
+
         cases = self.get_all_cases()
+
+        images_dir = base_dir / "images"
+        reports_dir = base_dir / "biopsy_reports"
+        consent_dir = base_dir / "consent_forms"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        if include_all:
+            consent_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        mastersheet_path = base_dir / f"mastersheet_{timestamp}.xlsx"
 
         def _process_case(case: dict) -> dict:
             biopsy_lesion_type = case.get("biopsy_lesion_type")
@@ -215,22 +259,98 @@ class DbManager:
         print(f"[DbManager] Mapped {len(clinician_mapping)} clinicians.")
 
         for case in cases:
+            name = idtype = idnum = dob = age = gender = ethnicity = phonenum = address = attending_hospital = lesion_clinical_presentation = chief_complaint = presenting_complaint_history = medication_history = medical_history = additional_comments = "NULL"
+            
+            aes_key = None
+            aes = case.get("encrypted_aes", {"salt": "NULL", "ciphertext": "NULL", "iv": "NULL"})
+            if (aes.get("salt") != "NULL" and aes.get("ciphertext") != "NULL" and aes.get("iv") != "NULL"):
+                aes_key = CryptoUtils.decrypt_aes_key_with_passphrase(
+                    encrypted_aes_key_b64=aes["ciphertext"],
+                    passphrase=PASSWORD,
+                    salt_b64=aes["salt"],
+                    iv_b64=aes["iv"]
+                )
+
+            encrypted_blob = case.get("encrypted_blob", {"url": "NULL", "iv": "NULL"})
+            if (encrypted_blob.get("url") != "NULL" and encrypted_blob.get("iv") != "NULL" and aes_key):
+                encrypted_blob_data = await Storage.download(encrypted_blob.get("url"))
+                blob_data = CryptoUtils.decrypt_string(
+                    encrypted_data_b64=encrypted_blob_data,
+                    iv_b64=encrypted_blob["iv"],
+                    aes_key=aes_key
+                )
+                blob_data = json.loads(blob_data)
+                age = blob_data.get("age", "NULL")
+                gender = blob_data.get("gender", "NULL")
+                ethnicity = blob_data.get("ethnicity", "NULL")
+                lesion_clinical_presentation = blob_data.get("lesion_clinical_presentation", "NULL")
+                chief_complaint = blob_data.get("chief_complaint", "NULL")
+                presenting_complaint_history = blob_data.get("presenting_complaint_history", "NULL")
+                medication_history = blob_data.get("medication_history", "NULL")
+                medical_history = blob_data.get("medical_history", "NULL")
+
+                for idx, img_b64 in enumerate(blob_data.get("images", [])):
+                    img_bytes = base64.b64decode(img_b64)
+                    img_path = images_dir / f"{case['case_id']}_{idx}.jpg"
+                    with open(img_path, "wb") as f:
+                        f.write(img_bytes)
+
+                if include_all:
+                    name = blob_data.get("name", "NULL")
+                    idtype = blob_data.get("idtype", "NULL")
+                    idnum = blob_data.get("idnum", "NULL")
+                    dob = blob_data.get("dob", "NULL")
+                    phonenum = blob_data.get("phonenum", "NULL")
+                    address = blob_data.get("address", "NULL")
+                    attending_hospital = blob_data.get("attending_hospital", "NULL")
+                    consent_form_b64 = blob_data.get("consent_form", "NULL")
+                    if consent_form_b64 != "NULL":
+                        with open(consent_dir / f"{case['case_id']}.pdf", "wb") as f:
+                            f.write(base64.b64decode(consent_form_b64))
+
+            additional_comments_obj = case.get("additional_comments", {"ciphertext": "NULL", "iv": "NULL"})
+            if (additional_comments_obj.get("ciphertext") != "NULL" and additional_comments_obj.get("iv") != "NULL" and aes_key):
+                additional_comments = CryptoUtils.decrypt_string(
+                    encrypted_data_b64=additional_comments_obj["ciphertext"],
+                    iv_b64=additional_comments_obj["iv"],
+                    aes_key=aes_key
+                )
+
             base = {
                 "case_id": case.get("case_id"),
                 "created_at": case.get("created_at"),
                 "created_by": case.get("created_by"),
                 "submitted_at": case.get("submitted_at"),
+                "name": name,
+                "idtype": idtype,
+                "idnum": idnum,
+                "dob": dob,
+                "age": age,
+                "gender": gender,
+                "ethnicity": ethnicity,
+                "phonenum": phonenum,
+                "address": address,
+                "attending_hospital": attending_hospital,
                 "alcohol": case.get("alcohol"),
                 "alcohol_duration": case.get("alcohol_duration"),
                 "betel_quid": case.get("betel_quid"),
                 "betel_quid_duration": case.get("betel_quid_duration"),
                 "smoking": case.get("smoking"),
                 "smoking_duration": case.get("smoking_duration"),
+                "lesion_clinical_presentation": lesion_clinical_presentation,
+                "chief_complaint": chief_complaint,
+                "presenting_complaint_history": presenting_complaint_history,
+                "medication_history": medication_history,
+                "medical_history": medical_history,
                 "oral_hygiene_products_used": case.get("oral_hygiene_products_used"),
                 "oral_hygiene_product_type_used": case.get("oral_hygiene_product_type_used"),
                 "sls_containing_toothpaste": case.get("sls_containing_toothpaste"),
-                "sls_containing_toothpaste_used": case.get("sls_containing_toothpaste_used")
+                "sls_containing_toothpaste_used": case.get("sls_containing_toothpaste_used"),
+                "additional_comments": additional_comments
             }
+            if not include_all:
+                for col in ["name", "idtype", "idnum", "dob", "phonenum", "address", "attending_hospital"]:
+                    base.pop(col, None)
 
             diagnoses = case.get("diagnoses", [])
             if not diagnoses:
@@ -275,12 +395,22 @@ class DbManager:
                             row[f"{clinician}_low_quality"] = "NULL"
                     rows.append(row)
 
-        mastersheet_df = pd.DataFrame(rows)
-        print(f"[DbManager] Exported master sheet with {len(mastersheet_df)} rows and {len(mastersheet_df.columns)} columns to a Pandas df.")
+                    biopsy_report_obj = case.get("biopsy_report", {"url": "NULL", "iv": "NULL"})
+                    if (biopsy_report_obj.get("url") != "NULL" and biopsy_report_obj.get("iv") != "NULL" and aes_key):
+                        biopsy_report_data = await Storage.download(biopsy_report_obj.get("url"))
+                        biopsy_report = CryptoUtils.decrypt_string(
+                            encrypted_data_b64=biopsy_report_data,
+                            iv_b64=biopsy_report_obj["iv"],
+                            aes_key=aes_key
+                        )
+                        with open(reports_dir / f"{case['case_id']}_{i}.pdf", "wb") as f:
+                            f.write(base64.b64decode(biopsy_report))
 
+        mastersheet_df = pd.DataFrame(rows)
+        print(f"[DbManager] Generated Sheet 1: Mastersheet with {len(mastersheet_df)} rows and {len(mastersheet_df.columns)} columns.")
         mapping_rows = [{"clinician": cname, "clinician_uid": uid} for uid, cname in clinician_mapping.items()]
         mapping_df = pd.DataFrame(mapping_rows)
-        print(f"[DbManager] Exported clinician mappings with {len(mapping_df)} rows and {len(mapping_df.columns)} columns to a Pandas df.")
+        print(f"[DbManager] Generated Sheet 2: Clinicians with {len(mapping_df)} rows and {len(mapping_df.columns)} columns.")
 
         for col in mastersheet_df.select_dtypes(include=["datetimetz"]).columns:
             mastersheet_df[col] = mastersheet_df[col].dt.tz_localize(None)
@@ -289,6 +419,92 @@ class DbManager:
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
             mastersheet_df.to_excel(writer, index=True, sheet_name="mastersheet")
             mapping_df.to_excel(writer, index=True, sheet_name="clinicians")
-        print(f"[DbManager] Written master sheet and clinician mapping to Excel buffer.")
         buf.seek(0)
-        return timestamp, buf
+        with open(mastersheet_path, "wb") as f:
+            f.write(buf.getvalue())
+        
+        zip_path = base_dir / f"bundle_{timestamp}.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in base_dir.rglob("*"):
+                if file_path == zip_path:
+                    continue
+                zipf.write(file_path, file_path.relative_to(base_dir))
+        print(f"[DbManager] Bundle processed at {base_dir}, Excel at {mastersheet_path}")
+
+        return timestamp, buf, zip_path
+    
+    def _encrypt_bundle(self, input_zip: Path, output_zip: Path, password_length: int = 12):
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        password = ''.join(secrets.choice(alphabet) for _ in range(password_length))
+        print(f"[DbManager] Generated {password_length} character password for bundle encryption.")
+
+        with pyzipper.AESZipFile(
+            output_zip,
+            'w',
+            compression=pyzipper.ZIP_DEFLATED,
+            encryption=pyzipper.WZ_AES
+        ) as zf:
+            zf.setpassword(password.encode())
+            zf.setencryption(pyzipper.WZ_AES, nbits=256)
+
+            zf.write(input_zip, arcname=input_zip.name)
+        print(f"[DbManager] Encrypted bundle saved to {output_zip}.")
+        
+        return password
+
+    def _upload_bundle(self, zip_path: Path, expiry_seconds: int = 24 * 3600) -> str:
+        file_name = zip_path.name
+        destination = f"bundles/{file_name}"
+        blob = bucket.blob(destination)
+
+        blob.upload_from_filename(str(zip_path))
+
+        blob.content_disposition = f'attachment; filename="{file_name}"'
+        blob.patch()
+
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(seconds=expiry_seconds),
+            method="GET"
+        )
+        print(f"[DbManager] Uploaded encrypted bundle to {destination} with signed URL valid for {expiry_seconds} seconds.")
+        return url
+
+    # def _email_bundle(self, email: str, timestamp: str, zip_path: Path, password_length: int = 12) -> str:
+    #     subject = f'MeMoSA Clinical Platform - Case Bundle {timestamp}'
+    #     content = (
+    #         f'Please find attached the encrypted case bundle generated at {timestamp}.\n'
+    #         f'Use the provided {password_length} character password to extract it.'
+    #     )
+
+    #     encrypted_path = zip_path.with_suffix('.encrypted.zip')
+    #     password = self._encrypt_bundle(zip_path, encrypted_path, password_length)
+
+    #     with open(encrypted_path, 'rb') as f:
+    #         data = f.read()
+    #         encoded_file = base64.b64encode(data).decode()
+
+    #     message = Mail(
+    #         from_email=SENDGRID_SENDER_EMAIL,
+    #         to_emails=email,
+    #         subject=subject,
+    #         plain_text_content=content
+    #     )
+
+    #     attachment = Attachment(
+    #         FileContent(encoded_file),
+    #         FileName(zip_path.name),
+    #         FileType('application/zip'),
+    #         Disposition('attachment')
+    #     )
+    #     message.attachment = attachment
+
+    #     try:
+    #         sg = SendGridAPIClient(SENDGRID_API_KEY)
+    #         response = sg.send(message)
+
+    #         print(f"[DbManager] Sent bundle {zip_path} to email {email}. Status: {response.status_code}")
+    #         return password
+    #     except Exception as e:
+    #         print(f"[DbManager] Failed to send bundle to email {email}: {e}")
+    #         return "NULL"

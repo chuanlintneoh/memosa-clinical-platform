@@ -58,19 +58,6 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
     } finally {
       setState(() => _isLoading = false);
     }
-
-    // Get undiagnosed cases
-    // final undiagnosedCases = await DbManagerService.getUndiagnosedCases(
-    //   clinicianID: "A",
-    // );
-    // print(undiagnosedCases[0]);
-    // print(undiagnosedCases[0]["case_data"].createdAt);
-    // print(undiagnosedCases[0]["case_data"].address);
-    // print(undiagnosedCases[0]["case_data"].additionalComments);
-    // print(undiagnosedCases[1]);
-    // print(undiagnosedCases[1]["case_data"].createdAt);
-    // print(undiagnosedCases[1]["case_data"].address);
-    // print(undiagnosedCases[1]["case_data"].additionalComments);
   }
 
   Future<void> _openDiagnoseCase({

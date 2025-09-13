@@ -7,4 +7,6 @@ pycryptodome
 pydantic[email]
 python-dateutil
 python-dotenv
+pyzipper
+# sendgrid
 uvicorn

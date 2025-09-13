@@ -69,14 +69,49 @@ def get_all_cases():
     return dbmanager.get_all_cases()
 
 @dbmanager_router.get("/cases/export")
-def export_mastersheet():
-    timestamp, buf = dbmanager.export_mastersheet()
+async def export_mastersheet(include_all: bool = False):
+    buf, timestamp = await dbmanager.export_bundle(include_all=include_all)
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=mastersheet_{timestamp}.xlsx"}
     )
 
+@dbmanager_router.get("/bundle/download")
+async def download_bundle(include_all: bool = False):
+    try:
+        url, password = await dbmanager.export_bundle(include_all=include_all, signed_url=True)
+        return {
+            "status": "success" if url else "failed",
+            "url": url,
+            "password": password,
+            "include_all": include_all,
+        }
+    except Exception as e:
+        print(f"[DbManager] Failed to generate/download bundle: {e}")
+        return {
+            "status": f"failed: {e}",
+            "include_all": include_all,
+        }
+
+# @dbmanager_router.get("/bundle/email")
+# async def email_bundle(email: str, include_all: bool = False):
+#     try:
+#         password = await dbmanager.export_bundle(include_all=include_all, email=email)
+#         return {
+#             "status": "success" if password != "NULL" else "failed",
+#             "password": password if password != "NULL" else None,
+#             "email": email,
+#             "include_all": include_all,
+#         }
+#     except Exception as e:
+#         print(f"[DbManager] Failed to generate/email bundle: {e}")
+#         return {
+#             "status": f"failed: {e}",
+#             "email": email,
+#             "include_all": include_all,
+#         }
+    
 # AIQueue flow:
 # 1. AIQueue receives new cases from DbManager and adds them to the queue
 # 2. AIQueue flush cases to AI diagnosis service for batch inference (time interval or max cases reached)
