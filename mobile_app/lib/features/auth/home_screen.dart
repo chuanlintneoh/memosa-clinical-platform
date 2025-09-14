@@ -20,7 +20,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _isExpanded = true;
+  bool _isExpanded = false;
 
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case "clinician":
         return [_buildNavButton(Icons.search, "Undiagnosed Cases")];
       case "admin":
-        return [_buildNavButton(Icons.file_download, "Export Mastersheet")];
+        return [_buildNavButton(Icons.file_download, "Export Bundle")];
       default:
         return [const Text("Unknown role")];
     }
@@ -73,12 +73,10 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(builder: (_) => const UndiagnosedCasesScreen()),
             );
             break;
-          case "Export Mastersheet":
+          case "Export Bundle":
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const ExportMastersheetScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const ExportBundleScreen()),
             );
             break;
           default:
@@ -92,13 +90,78 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  List<Widget> _buildQuickActions() {
+    switch (widget.role) {
+      case "study_coordinator":
+        return [
+          _buildQuickAction(Icons.drafts, "Draft & Create Cases", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DraftCasesScreen()),
+            );
+          }),
+          _buildQuickAction(Icons.edit, "Search & Edit Case", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EditCaseScreen()),
+            );
+          }),
+        ];
+      case "clinician":
+        return [
+          _buildQuickAction(Icons.search, "Undiagnosed Cases", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const UndiagnosedCasesScreen()),
+            );
+          }),
+        ];
+      case "admin":
+        return [
+          _buildQuickAction(Icons.file_download, "Export Bundle", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ExportBundleScreen()),
+            );
+          }),
+        ];
+      default:
+        return [];
+    }
+  }
+
+  Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey[50],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.blueGrey.shade200),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 32, color: Colors.blueGrey[800]),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Row(
           children: [
-            // Sidebar
             AnimatedContainer(
               duration: _isExpanded
                   ? const Duration(milliseconds: 10)
@@ -181,20 +244,87 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Main Content Area
             Expanded(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    children: [
-                      Text(
-                        "Welcome ${widget.name}! You are logged in as role: ${widget.role}.",
-                      ),
-                    ],
+              child: ListView(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AspectRatio(
+                          aspectRatio: 3,
+                          child: Image.asset('assets/images/logo_crmy.webp'),
+                        ),
+                        const SizedBox(height: 20),
+
+                        Card(
+                          elevation: _isExpanded ? 50 : 100,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "👋 Welcome to MeMoSA\nClinical Platform,\n${widget.name}.",
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                if (!_isExpanded) ...[
+                                  Text(
+                                    "Role: ${widget.role}",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Email:\n${widget.email}",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 50),
+
+                        Text(
+                          "Quick Actions",
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: _buildQuickActions()
+                              .map(
+                                (action) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: action,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+
+                        const SizedBox(height: 10),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],

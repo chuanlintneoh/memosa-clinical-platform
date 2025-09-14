@@ -77,21 +77,28 @@ async def export_mastersheet(include_all: bool = False):
         headers={"Content-Disposition": f"attachment; filename=mastersheet_{timestamp}.xlsx"}
     )
 
-@dbmanager_router.get("/bundle/download")
-async def download_bundle(include_all: bool = False):
+@dbmanager_router.get("/bundle/export")
+async def export_bundle(include_all: bool = False, expiry_days: int = 1):
     try:
-        url, password = await dbmanager.export_bundle(include_all=include_all, signed_url=True)
+        url, password, timestamp = await dbmanager.export_bundle(include_all=include_all, signed_url=True, expiry_seconds=expiry_days * 24 * 3600)
+        if not url:
+            return {
+                "status": "failed",
+                "error": "No url returned"
+            }
         return {
-            "status": "success" if url else "failed",
+            "status": "success",
             "url": url,
             "password": password,
+            "timestamp": timestamp,
+            "expiry_days": expiry_days,
             "include_all": include_all,
         }
     except Exception as e:
         print(f"[DbManager] Failed to generate/download bundle: {e}")
         return {
-            "status": f"failed: {e}",
-            "include_all": include_all,
+            "status": "failed",
+            "error": str(e)
         }
 
 # @dbmanager_router.get("/bundle/email")

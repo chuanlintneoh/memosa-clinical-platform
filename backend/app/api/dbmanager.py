@@ -190,6 +190,7 @@ class DbManager:
         self,
         include_all: bool = False,
         signed_url: bool = False,
+        expiry_seconds: int = 24 * 3600,
         # email: Optional[str] = None
     ):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -205,10 +206,10 @@ class DbManager:
             else:
                 encrypted_path = zip_path.with_suffix('.encrypted.zip')
                 password = self._encrypt_bundle(zip_path, encrypted_path)
-                url = self._upload_bundle(encrypted_path)
+                url = self._upload_bundle(encrypted_path, expiry_seconds)
                 # if email:
                     # self._email_bundle(email, timestamp, zip_path)
-                return url, password
+                return url, password, timestamp
     
     async def _process_bundle(self, base_dir: Path, include_all: bool = False):
         print(f"[DbManager] Processing bundle (include_all={include_all})...")

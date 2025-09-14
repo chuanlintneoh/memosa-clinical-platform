@@ -53,6 +53,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             content: Text("Registration successful, please log in"),
           ),
         );
+
+        _nameController.clear();
+        _emailController.clear();
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+        setState(() => _role = UserRole.clinician);
       } else {
         setState(() => _error = "Registration failed");
       }
@@ -159,7 +165,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               TextButton(
                 onPressed: () {
-                  Navigator.push(
+                  Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                   );
