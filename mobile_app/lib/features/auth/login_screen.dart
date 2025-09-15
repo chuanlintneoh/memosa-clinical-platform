@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/auth.dart';
+import 'package:mobile_app/core/services/main.dart';
 import 'package:mobile_app/features/auth/home_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +18,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
+  bool _serverUp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pingServer();
+  }
+
+  Future<void> _pingServer() async {
+    final result = await MainService.ping();
+    setState(() {
+      _serverUp = result;
+    });
+  }
 
   Future<void> _login() async {
     setState(() {
@@ -101,10 +116,12 @@ class _LoginScreenState extends State<LoginScreen> {
               if (_error != null)
                 Text(_error!, style: const TextStyle(color: Colors.red)),
               ElevatedButton(
-                onPressed: _loading ? null : _login,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text("Login"),
+                onPressed: _serverUp ? (_loading ? null : _login) : _pingServer,
+                child: _serverUp
+                    ? (_loading
+                          ? const CircularProgressIndicator()
+                          : const Text("Login"))
+                    : const Text("Connect to Server"),
               ),
               TextButton(
                 onPressed: () {

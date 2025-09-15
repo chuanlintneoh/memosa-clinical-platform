@@ -65,7 +65,7 @@ class PrivateCaseModel {
   final String age;
   final String attendingHospital;
   final String chiefComplaint;
-  final Uint8List consentForm;
+  final Map<String, dynamic> consentForm;
   final DateTime dob;
   final String ethnicity;
   final Gender gender;
@@ -105,7 +105,7 @@ class PrivateCaseModel {
       "age": age,
       "attending_hospital": attendingHospital,
       "chief_complaint": chiefComplaint,
-      "consent_form": base64Encode(consentForm),
+      "consent_form": consentForm,
       "dob": dob.toIso8601String(),
       "ethnicity": ethnicity,
       "gender": gender.name,
@@ -185,7 +185,7 @@ class Diagnosis {
     aiLesionType: LesionType.NULL,
     biopsyClinicalDiagnosis: ClinicalDiagnosis.NULL,
     biopsyLesionType: LesionType.NULL,
-    biopsyReport: {"url": "NULL", "iv": "NULL"},
+    biopsyReport: {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
     coeClinicalDiagnosis: ClinicalDiagnosis.NULL,
     coeLesionType: LesionType.NULL,
   );
@@ -200,7 +200,8 @@ class Diagnosis {
         rawDiagnosis["biopsy_lesion_type"],
       ),
       biopsyReport:
-          rawDiagnosis["biopsy_report"] ?? {"url": "NULL", "iv": "NULL"},
+          rawDiagnosis["biopsy_report"] ??
+          {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
       coeClinicalDiagnosis: ClinicalDiagnosisMapper.fromString(
         rawDiagnosis["coe_clinical_diagnosis"],
       ),
@@ -314,7 +315,7 @@ class CaseRetrieveModel {
   final String age;
   final String attendingHospital;
   final String chiefComplaint;
-  final Uint8List consentForm;
+  final Map<String, dynamic> consentForm;
   final String dob;
   final String ethnicity;
   final String gender;
@@ -380,11 +381,14 @@ class CaseRetrieveModel {
           .toList();
     }
 
+    String consentFormType = "NULL";
     Uint8List consentFormBytes = Uint8List(0);
     if (decryptedData["consent_form"] != null &&
-        decryptedData["consent_form"] is String) {
+        decryptedData["consent_form"] is Map<String, dynamic>) {
       try {
-        consentFormBytes = base64Decode(decryptedData["consent_form"]);
+        final consentForm = decryptedData["consent_form"];
+        consentFormType = consentForm["fileType"];
+        consentFormBytes = base64Decode(consentForm["fileBytes"]);
       } catch (_) {}
     }
 
@@ -422,7 +426,7 @@ class CaseRetrieveModel {
       age: decryptedData["age"] ?? "NULL",
       attendingHospital: decryptedData["attending_hospital"] ?? "NULL",
       chiefComplaint: decryptedData["chief_complaint"] ?? "NULL",
-      consentForm: consentFormBytes,
+      consentForm: {"fileType": consentFormType, "fileBytes": consentFormBytes},
       dob: decryptedData["dob"] ?? "NULL",
       ethnicity: decryptedData["ethnicity"] ?? "NULL",
       gender: decryptedData["gender"] ?? "NULL",

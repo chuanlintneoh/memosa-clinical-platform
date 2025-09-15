@@ -523,7 +523,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                     _confirmAction(
                       title: "Cancel Diagnosis",
                       message: "Are you sure you want to cancel diagnosis?",
-                      onConfirm: _cancelDiagnosis, // TODO: Cancel diagnosis
+                      onConfirm: _cancelDiagnosis,
                     );
                   },
                   icon: const Icon(Icons.cancel),
@@ -534,7 +534,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                     _confirmAction(
                       title: "Submit Diagnosis",
                       message: "Are you sure you want to submit diagnosis?",
-                      onConfirm: _submitDiagnosis, // TODO: Submit diagnosis
+                      onConfirm: _submitDiagnosis,
                     );
                   },
                   icon: const Icon(Icons.check),

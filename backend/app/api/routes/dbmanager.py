@@ -125,9 +125,6 @@ async def export_bundle(include_all: bool = False, expiry_days: int = 1):
 # 3. AIQueue wait with timeout for AI diagnosis service to return results
 # 4. AIQueue append diagnosis results to case id (no results / exceed timeout = "FAILED") and send back to DbManager
 
-# questions on this code:
-# isnt it async? which and when should be async?
-
 # the tasks of dbmanager include:
 # - store newly created case
 # - arrange new job to ai queue service for new case created

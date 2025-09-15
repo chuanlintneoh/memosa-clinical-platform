@@ -4,7 +4,10 @@
         "age": "",
         "attending_hospital": "",
         "chief_complaint": "",
-        "consent_form": "base64...",
+        "consent_form": {
+            "fileType": "",
+            "fileBytes": "base64..."
+        },
         "dob": "",
         "ethnicity": "",
         "gender": "",
@@ -63,7 +66,8 @@
                 "biopsy_lesion_type": "",
                 "biopsy_report": {
                     "url": "",
-                    "iv": ""
+                    "iv": "",
+                    "fileType": ""
                 },
                 "coe_clinical_diagnosis": "",
                 "coe_lesion_type": ""
@@ -91,7 +95,11 @@
                 "biopsy_agree_with_coe": "",
                 "biopsy_clinical_diagnosis": "",
                 "biopsy_lesion_type": "",
-                "biopsy_report_url": "",
+                "biopsy_report": {
+                    "url": "",
+                    "iv": "",
+                    "fileType": ""
+                },
                 "coe_clinical_diagnosis": "",
                 "coe_lesion_type": ""
             }
@@ -100,7 +108,10 @@
         "age": "",
         "attending_hospital": "",
         "chief_complaint": "",
-        "consent_form": "base64...",
+        "consent_form": {
+            "fileType": "",
+            "fileBytes": "base64..."
+        },
         "dob": "",
         "ethnicity": "",
         "gender": "",
@@ -147,7 +158,8 @@
                 "biopsy_lesion_type": "",
                 "biopsy_report": {
                     "url": "",
-                    "iv": ""
+                    "iv": "",
+                    "fileType": ""
                 },
                 "coe_clinical_diagnosis": "",
                 "coe_lesion_type": ""
@@ -202,7 +214,8 @@
                 "biopsy_lesion_type": "",
                 "biopsy_report": {
                     "url": "",
-                    "iv": ""
+                    "iv": "",
+                    "fileType": ""
                 },
                 "coe_clinical_diagnosis": "",
                 "coe_lesion_type": "",

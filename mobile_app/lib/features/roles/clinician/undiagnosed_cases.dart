@@ -64,7 +64,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
     required Map<String, dynamic> caseInfo,
     required int index,
   }) async {
-    final result = await Navigator.push(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (_) =>

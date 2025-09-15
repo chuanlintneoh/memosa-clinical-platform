@@ -34,7 +34,7 @@ class _DraftCasesScreenState extends State<DraftCasesScreen> {
   }
 
   void _openCreateCase({Map<String, dynamic>? draft, int? index}) async {
-    final result = await Navigator.push(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (_) => CreateCaseScreen(draft: draft, draftIndex: index),

@@ -304,10 +304,13 @@ class DbManager:
                     phonenum = blob_data.get("phonenum", "NULL")
                     address = blob_data.get("address", "NULL")
                     attending_hospital = blob_data.get("attending_hospital", "NULL")
-                    consent_form_b64 = blob_data.get("consent_form", "NULL")
-                    if consent_form_b64 != "NULL":
-                        with open(consent_dir / f"{case['case_id']}.pdf", "wb") as f:
-                            f.write(base64.b64decode(consent_form_b64))
+                    consent_form = blob_data.get("consent_form", {
+                        "fileType": "NULL",
+                        "fileBytes": "NULL"
+                    })
+                    if consent_form["fileBytes"] != "NULL":
+                        with open(consent_dir / f"{case['case_id']}.{str(consent_form['fileType']).lower()}", "wb") as f:
+                            f.write(base64.b64decode(consent_form["fileBytes"]))
 
             additional_comments_obj = case.get("additional_comments", {"ciphertext": "NULL", "iv": "NULL"})
             if (additional_comments_obj.get("ciphertext") != "NULL" and additional_comments_obj.get("iv") != "NULL" and aes_key):
@@ -396,7 +399,11 @@ class DbManager:
                             row[f"{clinician}_low_quality"] = "NULL"
                     rows.append(row)
 
-                    biopsy_report_obj = case.get("biopsy_report", {"url": "NULL", "iv": "NULL"})
+                    biopsy_report_obj = case.get("biopsy_report", {
+                        "url": "NULL",
+                        "iv": "NULL",
+                        "fileType": "NULL"
+                    })
                     if (biopsy_report_obj.get("url") != "NULL" and biopsy_report_obj.get("iv") != "NULL" and aes_key):
                         biopsy_report_data = await Storage.download(biopsy_report_obj.get("url"))
                         biopsy_report = CryptoUtils.decrypt_string(
@@ -404,7 +411,7 @@ class DbManager:
                             iv_b64=biopsy_report_obj["iv"],
                             aes_key=aes_key
                         )
-                        with open(reports_dir / f"{case['case_id']}_{i}.pdf", "wb") as f:
+                        with open(reports_dir / f"{case['case_id']}_{i}.{str(biopsy_report_obj['fileType']).lower()}", "wb") as f:
                             f.write(base64.b64decode(biopsy_report))
 
         mastersheet_df = pd.DataFrame(rows)

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/auth.dart';
+import 'package:mobile_app/core/services/main.dart';
 import 'package:mobile_app/features/auth/login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -19,6 +20,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _loading = false;
   String? _error;
+  bool _serverUp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pingServer();
+  }
+
+  Future<void> _pingServer() async {
+    final result = await MainService.ping();
+    setState(() {
+      _serverUp = result;
+    });
+  }
 
   Future<void> _register() async {
     setState(() {
@@ -158,10 +173,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
               if (_error != null)
                 Text(_error!, style: const TextStyle(color: Colors.red)),
               ElevatedButton(
-                onPressed: _loading ? null : _register,
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : const Text("Register"),
+                onPressed: _serverUp
+                    ? (_loading ? null : _register)
+                    : _pingServer,
+                child: _serverUp
+                    ? (_loading
+                          ? const CircularProgressIndicator()
+                          : const Text("Register"))
+                    : const Text("Connect to Server"),
               ),
               TextButton(
                 onPressed: () {

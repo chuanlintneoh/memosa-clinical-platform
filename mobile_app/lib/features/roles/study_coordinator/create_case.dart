@@ -9,6 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/features/roles/study_coordinator/image_card.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:uuid/uuid.dart';
 
 class CreateCaseScreen extends StatefulWidget {
@@ -22,6 +25,8 @@ class CreateCaseScreen extends StatefulWidget {
 }
 
 class _CreateCaseScreenState extends State<CreateCaseScreen> {
+  bool _isLoading = false;
+
   final _formKey = GlobalKey<FormState>();
 
   late final String caseId;
@@ -185,14 +190,26 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   }
 
   Future<void> _submitCase() async {
+    setState(() {
+      _isLoading = true;
+    });
     if (_formKey.currentState!.validate()) {
       DateTime? dob = _dobController.text.isNotEmpty
           ? DateTime.tryParse(_dobController.text)
           : null;
 
-      Uint8List? consentBytes = _consentForm != null
+      String consentFormType = _consentForm != null
+          ? _consentForm!.path.split('.').last.toLowerCase()
+          : "NULL";
+
+      Uint8List consentBytes = _consentForm != null
           ? await _consentForm!.readAsBytes()
-          : null;
+          : Uint8List(0);
+
+      final consentForm = {
+        "fileType": consentFormType,
+        "fileBytes": consentBytes,
+      };
 
       List<Uint8List?> imageBytes = [];
       for (var img in _images) {
@@ -227,7 +244,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           age: _ageController.text,
           attendingHospital: _attendingHospitalController.text,
           chiefComplaint: _chiefComplaintController.text,
-          consentForm: consentBytes ?? Uint8List(0),
+          consentForm: consentForm,
           dob: dob!,
           ethnicity: _ethnicityController.text,
           gender: _gender!,
@@ -258,6 +275,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           SnackBar(content: Text('Error submitting case: $result')),
         );
       }
+      _isLoading = false;
     }
   }
 
@@ -370,7 +388,17 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   Future<void> _pickConsentForm() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+      allowedExtensions: [
+        'jpg',
+        'jpeg',
+        'png',
+        // 'gif',
+        'webp',
+        'bmp',
+        'pdf',
+        'doc',
+        'docx',
+      ],
     );
 
     if (result != null && result.files.single.path != null) {
@@ -380,14 +408,134 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
-  Future<void> _pickImage(int index) async {
-    final XFile? pickedImage = await _picker.pickImage(
-      source: ImageSource.camera,
+  Future<void> _viewConsentForm() async {
+    final fileBytes = await _consentForm!.readAsBytes();
+    final fileType = _consentForm != null
+        ? _consentForm!.path.split('.').last
+        : "NULL";
+    switch (fileType.toLowerCase()) {
+      case "jpg":
+      case "jpeg":
+      case "png":
+      // case "gif":
+      case "webp":
+      case "bmp":
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text("File as ${fileType.toLowerCase()}"),
+            content: SingleChildScrollView(child: Image.memory(fileBytes)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+        break;
+
+      case "pdf":
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text("File as ${fileType.toLowerCase()}"),
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.9,
+              height: MediaQuery.of(context).size.height * 0.8,
+              child: SfPdfViewer.memory(fileBytes),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+        break;
+
+      case "doc":
+      case "docx":
+        final tempDir = await getTemporaryDirectory();
+        final filePath = "${tempDir.path}/temp.$fileType";
+        final file = File(filePath);
+        await file.writeAsBytes(fileBytes);
+        OpenFilex.open(filePath);
+        break;
+
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Cannot preview file, unsupported file type ${fileType.toLowerCase()}",
+            ),
+          ),
+        );
+        break;
+    }
+  }
+
+  Future<void> _showImageSourceActionSheet(int index) async {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImageFromSource(index, ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImageFromSource(index, ImageSource.gallery);
+                },
+              ),
+              if (_images[index] != null)
+                ListTile(
+                  leading: const Icon(Icons.delete),
+                  title: const Text('Remove Image'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() => _images[index] = null);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        );
+      },
     );
-    if (pickedImage != null) {
-      setState(() {
-        _images[index] = pickedImage;
-      });
+  }
+
+  Future<void> _pickImageFromSource(int index, ImageSource source) async {
+    try {
+      final XFile? pickedImage = await _picker.pickImage(
+        source: source,
+        imageQuality: 100, // Restrict to JPG only
+      );
+
+      if (pickedImage != null) {
+        setState(() {
+          _images[index] = pickedImage;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
     }
   }
 
@@ -500,17 +648,36 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                     const SizedBox(height: 8),
 
                     Text("Consent Form"),
-                    ElevatedButton.icon(
-                      onPressed: _pickConsentForm,
-                      icon: _consentForm != null
-                          ? const Icon(Icons.edit)
-                          : const Icon(Icons.upload_file),
-                      label: _consentForm != null
-                          ? Text(
-                              "Replace: ${_consentForm!.path.split('/').last}",
-                            )
-                          : const Text("Upload"),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _pickConsentForm,
+                          icon: _consentForm != null
+                              ? const Icon(Icons.edit)
+                              : const Icon(Icons.upload_file),
+                          label: _consentForm != null
+                              ? Text("Replace")
+                              : const Text("Upload"),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _consentForm == null
+                              ? () =>
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text(
+                                          "No consent form available",
+                                        ),
+                                      ),
+                                    )
+                              : () => _viewConsentForm,
+                          icon: const Icon(Icons.remove_red_eye),
+                          label: const Text("View"),
+                        ),
+                      ],
                     ),
+
                     const SizedBox(height: 8),
 
                     Row(
@@ -701,47 +868,47 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                                 ImageCard(
                                   title: 'IMG1:\nTongue',
                                   imageFile: _images[0],
-                                  onTap: () => _pickImage(0),
+                                  onTap: () => _showImageSourceActionSheet(0),
                                 ),
                                 ImageCard(
                                   title: 'IMG2:\nBelow Tongue',
                                   imageFile: _images[1],
-                                  onTap: () => _pickImage(1),
+                                  onTap: () => _showImageSourceActionSheet(1),
                                 ),
                                 ImageCard(
                                   title: 'IMG3:\nLeft of Tongue',
                                   imageFile: _images[2],
-                                  onTap: () => _pickImage(2),
+                                  onTap: () => _showImageSourceActionSheet(2),
                                 ),
                                 ImageCard(
                                   title: 'IMG4:\nRight of Tongue',
                                   imageFile: _images[3],
-                                  onTap: () => _pickImage(3),
+                                  onTap: () => _showImageSourceActionSheet(3),
                                 ),
                                 ImageCard(
                                   title: 'IMG5:\nPalate',
                                   imageFile: _images[4],
-                                  onTap: () => _pickImage(4),
+                                  onTap: () => _showImageSourceActionSheet(4),
                                 ),
                                 ImageCard(
                                   title: 'IMG6:\nLeft Cheek',
                                   imageFile: _images[5],
-                                  onTap: () => _pickImage(5),
+                                  onTap: () => _showImageSourceActionSheet(5),
                                 ),
                                 ImageCard(
                                   title: 'IMG7:\nRight Cheek',
                                   imageFile: _images[6],
-                                  onTap: () => _pickImage(6),
+                                  onTap: () => _showImageSourceActionSheet(6),
                                 ),
                                 ImageCard(
                                   title: 'IMG8:\nUpper Lip / Gum',
                                   imageFile: _images[7],
-                                  onTap: () => _pickImage(7),
+                                  onTap: () => _showImageSourceActionSheet(7),
                                 ),
                                 ImageCard(
                                   title: 'IMG9:\nLower Lip / Gum',
                                   imageFile: _images[8],
-                                  onTap: () => _pickImage(8),
+                                  onTap: () => _showImageSourceActionSheet(8),
                                 ),
                               ],
                             ),
@@ -791,8 +958,12 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                         onConfirm: _submitCase,
                       );
                     },
-                    icon: const Icon(Icons.send),
-                    label: const Text("Submit"),
+                    icon: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Icon(Icons.send),
+                    label: _isLoading
+                        ? const Text("Submitting...")
+                        : const Text("Submit"),
                   ),
                 ],
               ),

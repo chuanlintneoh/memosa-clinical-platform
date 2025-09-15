@@ -5,11 +5,12 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image/image.dart' as img;
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class EditCaseScreen extends StatefulWidget {
@@ -54,9 +55,13 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       );
   final List<Map<String, dynamic>> _biopsyReports = List.generate(
     9,
-    (_) => {"url": "NULL", "iv": "NULL"},
-  );
-  final List<File?> _biopsyReportFiles = List.filled(9, null);
+    (_) => {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
+  ); // report from database
+  final List<File?> _biopsyReportFiles = List.filled(
+    9,
+    null,
+  ); // recently picked file pending to upload to storage upon case changes submission
+  // final List<String> _biopsyReportFileTypes = List.filled(9, "NULL");
   final List<LesionType> _aiLesionTypes = List.filled(9, LesionType.NULL);
 
   bool _isLoading = false;
@@ -127,7 +132,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     final attendingHospitalController = TextEditingController(
       text: caseData.attendingHospital,
     );
-    final Uint8List consentForm = caseData.consentForm;
+    final String consentFormType = caseData.consentForm["fileType"] ?? "NULL";
+    final Uint8List consentFormBytes =
+        caseData.consentForm["fileBytes"] ?? Uint8List(0);
     Habit? smoking = caseData.smoking;
     final smokingDurationController = TextEditingController(
       text: caseData.smokingDuration,
@@ -179,13 +186,15 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       if (incomingReport != null &&
           incomingReport is Map &&
           incomingReport.containsKey("url") &&
-          incomingReport.containsKey("iv")) {
+          incomingReport.containsKey("iv") &&
+          incomingReport.containsKey("fileType")) {
         _biopsyReports[i] = {
           "url": incomingReport["url"] ?? "NULL",
           "iv": incomingReport["iv"] ?? "NULL",
+          "fileType": incomingReport["fileType"] ?? "NULL",
         };
       } else {
-        _biopsyReports[i] = {"url": "NULL", "iv": "NULL"};
+        _biopsyReports[i] = {"url": "NULL", "iv": "NULL", "fileType": "NULL"};
       }
 
       _updateBiopsyAgreeWithCOE(i);
@@ -285,11 +294,11 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
 
         Text("Consent Form"),
         ElevatedButton.icon(
-          onPressed: consentForm.isEmpty
+          onPressed: consentFormBytes.isEmpty
               ? () => ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: const Text("No consent form available")),
                 )
-              : () => _viewFile(consentForm),
+              : () => _viewFile(consentFormBytes, fileType: consentFormType),
           icon: const Icon(Icons.remove_red_eye),
           label: const Text("View"),
         ),
@@ -638,50 +647,70 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     );
   }
 
-  void _viewFile(Uint8List fileBytes) {
-    bool isImage = false;
-    try {
-      // Try decoding the bytes as an image
-      final decoded = img.decodeImage(fileBytes);
-      if (decoded != null) isImage = true;
-    } catch (_) {
-      isImage = false;
-    }
-
-    if (isImage) {
-      // Show image in a dialog
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("File"),
-          content: SingleChildScrollView(child: Image.memory(fileBytes)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
-            ),
-          ],
-        ),
-      );
-    } else {
-      // Attempt to render as PDF
-      try {
+  Future<void> _viewFile(
+    Uint8List fileBytes, {
+    String fileType = "NULL",
+  }) async {
+    switch (fileType.toLowerCase()) {
+      case "jpg":
+      case "jpeg":
+      case "png":
+      // case "gif":
+      case "webp":
+      case "bmp":
         showDialog(
           context: context,
-          builder: (_) => Dialog(
-            child: SizedBox(
+          builder: (_) => AlertDialog(
+            title: Text("File as ${fileType.toLowerCase()}"),
+            content: SingleChildScrollView(child: Image.memory(fileBytes)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+        break;
+
+      case "pdf":
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text("File as ${fileType.toLowerCase()}"),
+            content: SizedBox(
               width: MediaQuery.of(context).size.width * 0.9,
               height: MediaQuery.of(context).size.height * 0.8,
               child: SfPdfViewer.memory(fileBytes),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
           ),
         );
-      } catch (_) {
-        // Cannot preview
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Cannot preview file")));
-      }
+        break;
+
+      case "doc":
+      case "docx":
+        final tempDir = await getTemporaryDirectory();
+        final filePath = "${tempDir.path}/temp.$fileType";
+        final file = File(filePath);
+        await file.writeAsBytes(fileBytes);
+        OpenFilex.open(filePath);
+        break;
+
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Cannot preview file, unsupported file type ${fileType.toLowerCase()}",
+            ),
+          ),
+        );
+        break;
     }
   }
 
@@ -712,11 +741,26 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   Future<void> _pickBiopsyReport(int index) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+      allowedExtensions: [
+        'jpg',
+        'jpeg',
+        'png',
+        // 'gif',
+        'webp',
+        'bmp',
+        'pdf',
+        'doc',
+        'docx',
+      ],
     );
 
     if (result != null && result.files.single.path != null) {
       setState(() {
+        _biopsyReports[index] = {
+          "url": "NULL",
+          "iv": "NULL",
+          "fileType": result.files.single.extension?.toLowerCase() ?? "NULL",
+        };
         _biopsyReportFiles[index] = File(result.files.single.path!);
       });
     }
@@ -727,13 +771,14 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       final local = _biopsyReportFiles[index];
       if (local != null) {
         final bytes = await local.readAsBytes();
-        _viewFile(bytes);
+        _viewFile(bytes, fileType: _biopsyReports[index]["fileType"] ?? "NULL");
         return;
       }
 
       final remote = _biopsyReports[index];
       final String url = (remote["url"] ?? "NULL") as String;
       final String iv = (remote["iv"] ?? "NULL") as String;
+      final String fileType = (remote["fileType"] ?? "NULL") as String;
 
       if (url == 'NULL' || url.isEmpty || iv == 'NULL' || iv.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -752,7 +797,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       );
 
       final Uint8List fileBytes = base64Decode(decryptedB64);
-      _viewFile(fileBytes);
+      _viewFile(fileBytes, fileType: fileType);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to open biopsy report: $e")),
@@ -785,7 +830,8 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         _biopsyClinicalDiagnoses[i] = ClinicalDiagnosis.NULL;
         _biopsyAgreeWithCOE[i] = BiopsyAgreeWithCOE.NULL;
         _biopsyAgreeWithCOEController[i].text = BiopsyAgreeWithCOE.NULL.name;
-        _biopsyReports[i] = {"url": "NULL", "iv": "NULL"};
+        _biopsyReports[i] = {"url": "NULL", "iv": "NULL", "fileType": "NULL"};
+        _biopsyReportFiles[i] = null;
       }
     });
   }
@@ -821,6 +867,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           finalBiopsyReports[i] = {
             "url": uploadUrl,
             "iv": encrypted["iv"] ?? "NULL",
+            "fileType": _biopsyReports[i]["fileType"] ?? "NULL",
           };
         }
       }
