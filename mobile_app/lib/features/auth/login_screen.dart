@@ -14,11 +14,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
   bool _serverUp = false;
+
+  final _formKey = GlobalKey<FormState>();
+
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   @override
   void initState() {
@@ -34,6 +37,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    if (!_serverUp) {
+      await _pingServer();
+      return;
+    }
+
+    if (_loading) return;
+
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       _loading = true;
       _error = null;
@@ -87,52 +99,79 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              AspectRatio(
-                aspectRatio: 4,
-                child: Image.asset('assets/images/logo_crmy.webp'),
-              ),
-              const SizedBox(height: 20),
-              const Text("Login", style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                AspectRatio(
+                  aspectRatio: 4,
+                  child: Image.asset('assets/images/logo_crmy.webp'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "Password",
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 20),
+                const Text("Login", style: TextStyle(fontSize: 24)),
+                const SizedBox(height: 20),
+
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: "Email",
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Email is required";
+                    }
+                    final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+                    if (!emailRegex.hasMatch(value.trim())) {
+                      return "Enter a valid email";
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 20),
-              if (_error != null)
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ElevatedButton(
-                onPressed: _serverUp ? (_loading ? null : _login) : _pingServer,
-                child: _serverUp
-                    ? (_loading
-                          ? const CircularProgressIndicator()
-                          : const Text("Login"))
-                    : const Text("Connect to Server"),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                  );
-                },
-                child: const Text("Don't have an account? Register"),
-              ),
-            ],
+                const SizedBox(height: 12),
+
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: "Password",
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Password is required";
+                    }
+                    if (value.length < 6) {
+                      return "Password must be at least 6 characters";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                if (_error != null)
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                ElevatedButton(
+                  onPressed: _serverUp
+                      ? (_loading ? null : _login)
+                      : _pingServer,
+                  child: _serverUp
+                      ? (_loading
+                            ? const CircularProgressIndicator()
+                            : const Text("Login"))
+                      : const Text("Connect to Server"),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    );
+                  },
+                  child: const Text("Don't have an account? Register"),
+                ),
+              ],
+            ),
           ),
         ),
       ),

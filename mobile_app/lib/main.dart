@@ -19,28 +19,6 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 
-  // Register user
-  // final result = await AuthService.registerUser(
-  //   fullName: "Clinician 1",
-  //   email: "clinician1@example.com",
-  //   password: dotenv.env['PASSWORD'] ?? '',
-  //   role: UserRole.clinician,
-  // );
-  // print(result);
-
-  // Login user
-  // try {
-  //   final result = await AuthService.loginUser(
-  //     user: LoginUser(
-  //       email: "studycoordinator1@example.com",
-  //       password: dotenv.env['PASSWORD'] ?? '',
-  //     ),
-  //   );
-  //   print(result);
-  // } catch (e) {
-  //   print("Error: $e");
-  // }
-
   // Get undiagnosed cases
   // final undiagnosedCases = await DbManagerService.getUndiagnosedCases(
   //   clinicianID: "A",
