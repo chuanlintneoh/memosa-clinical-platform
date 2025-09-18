@@ -61,7 +61,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     9,
     null,
   ); // recently picked file pending to upload to storage upon case changes submission
-  // final List<String> _biopsyReportFileTypes = List.filled(9, "NULL");
   final List<LesionType> _aiLesionTypes = List.filled(9, LesionType.NULL);
 
   bool _isLoading = false;
@@ -570,11 +569,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                         ? const Icon(Icons.edit)
                         : const Icon(Icons.upload_file)),
               label: _biopsyReportFiles[_selectedImageIndex] != null
-                  ? Text(
-                      "Replace: ${_biopsyReportFiles[_selectedImageIndex]!.path.split(Platform.pathSeparator).last}",
-                    )
+                  ? Text("Replace")
                   : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
-                        ? Text("Replace existing")
+                        ? Text("Replace")
                         : const Text("Upload")),
             ),
             const SizedBox(width: 12),
@@ -595,6 +592,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   Widget _buildTextField(
     TextEditingController controller,
     String label, {
+    bool required = false,
     bool readOnly = true,
     bool multiline = false,
     bool noExpand = false,
@@ -619,8 +617,12 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             : null,
         border: readOnly ? const OutlineInputBorder() : null,
       ),
-      validator: (value) =>
-          value == null || value.isEmpty ? "Enter $label" : null,
+      validator: (val) {
+        if (required && val == null) {
+          return "Select $label";
+        }
+        return null;
+      },
     );
   }
 
@@ -628,8 +630,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     String label,
     T? value,
     List<T> values,
-    void Function(T?) onChanged,
-  ) {
+    void Function(T?) onChanged, {
+    bool required = false,
+  }) {
     String displayValue(dynamic e) {
       if (e is Enum) return e.name;
       if (e is bool) return e ? "YES" : "NO";
@@ -643,7 +646,12 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           .map((e) => DropdownMenuItem(value: e, child: Text(displayValue(e))))
           .toList(),
       onChanged: onChanged,
-      validator: (val) => val == null ? "Select $label" : null,
+      validator: (val) {
+        if (required && val == null) {
+          return "Select $label";
+        }
+        return null;
+      },
     );
   }
 
@@ -651,66 +659,81 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     Uint8List fileBytes, {
     String fileType = "NULL",
   }) async {
-    switch (fileType.toLowerCase()) {
-      case "jpg":
-      case "jpeg":
-      case "png":
-      // case "gif":
-      case "webp":
-      case "bmp":
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text("File as ${fileType.toLowerCase()}"),
-            content: SingleChildScrollView(child: Image.memory(fileBytes)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Close"),
-              ),
-            ],
-          ),
-        );
-        break;
-
-      case "pdf":
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text("File as ${fileType.toLowerCase()}"),
-            content: SizedBox(
-              width: MediaQuery.of(context).size.width * 0.9,
-              height: MediaQuery.of(context).size.height * 0.8,
-              child: SfPdfViewer.memory(fileBytes),
+    try {
+      switch (fileType.toLowerCase()) {
+        case "jpg":
+        case "jpeg":
+        case "png":
+        // case "gif":
+        case "webp":
+        case "bmp":
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text("File as ${fileType.toLowerCase()}"),
+              content: SingleChildScrollView(child: Image.memory(fileBytes)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Close"),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Close"),
+          );
+          break;
+
+        case "pdf":
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text("File as ${fileType.toLowerCase()}"),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: SfPdfViewer.memory(fileBytes),
               ),
-            ],
-          ),
-        );
-        break;
-
-      case "doc":
-      case "docx":
-        final tempDir = await getTemporaryDirectory();
-        final filePath = "${tempDir.path}/temp.$fileType";
-        final file = File(filePath);
-        await file.writeAsBytes(fileBytes);
-        OpenFilex.open(filePath);
-        break;
-
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Cannot preview file, unsupported file type ${fileType.toLowerCase()}",
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Close"),
+                ),
+              ],
             ),
-          ),
-        );
-        break;
+          );
+          break;
+
+        case "doc":
+        case "docx":
+          final tempDir = await getTemporaryDirectory();
+          final filePath = "${tempDir.path}/temp.$fileType";
+          final file = File(filePath);
+          await file.writeAsBytes(fileBytes);
+          final result = await OpenFilex.open(filePath);
+          if (result.type != ResultType.done) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "No app available to open ${fileType.toUpperCase()} file",
+                ),
+              ),
+            );
+          }
+          break;
+
+        default:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Cannot preview file, unsupported file type ${fileType.toLowerCase()}",
+              ),
+            ),
+          );
+          break;
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to open file: $e")));
     }
   }
 
@@ -756,11 +779,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
 
     if (result != null && result.files.single.path != null) {
       setState(() {
-        _biopsyReports[index] = {
-          "url": "NULL",
-          "iv": "NULL",
-          "fileType": result.files.single.extension?.toLowerCase() ?? "NULL",
-        };
         _biopsyReportFiles[index] = File(result.files.single.path!);
       });
     }
@@ -771,7 +789,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       final local = _biopsyReportFiles[index];
       if (local != null) {
         final bytes = await local.readAsBytes();
-        _viewFile(bytes, fileType: _biopsyReports[index]["fileType"] ?? "NULL");
+        _viewFile(bytes, fileType: local.path.split('.').last.toLowerCase());
         return;
       }
 
@@ -821,7 +839,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       _errorMessage = null;
       _isLoading = false;
 
-      // Reset form state
       _selectedImageIndex = 0;
       for (int i = 0; i < 9; i++) {
         _coeLesionTypes[i] = LesionType.NULL;
@@ -839,7 +856,23 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   Future<void> _submitChanges() async {
     if (_searchResult == null) return;
 
-    setState(() => _isLoading = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Submitting Case Changes"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text("The case is being submitted at the moment."),
+            ],
+          ),
+        );
+      },
+    );
 
     try {
       final aesKey = _searchResult!['aes'] as Uint8List;
@@ -867,7 +900,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           finalBiopsyReports[i] = {
             "url": uploadUrl,
             "iv": encrypted["iv"] ?? "NULL",
-            "fileType": _biopsyReports[i]["fileType"] ?? "NULL",
+            "fileType": local.path.split('.').last.toLowerCase(),
           };
         }
       }
@@ -906,21 +939,26 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       );
 
       if (editResult == caseId) {
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Case updated successfully")),
         );
         _resetState();
       } else {
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Unexpected response from server")),
+          SnackBar(
+            content: Text(
+              "Case submitted but server returned different Case ID: $editResult",
+            ),
+          ),
         );
       }
     } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error submitting changes: $e")));
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 

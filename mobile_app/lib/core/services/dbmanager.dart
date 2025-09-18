@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_app/core/models/case.dart';
@@ -18,8 +18,8 @@ class DbManagerService {
     required PrivateCaseModel privateData,
   }) async {
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) throw Exception("User not logged in");
+      // final uid = FirebaseAuth.instance.currentUser?.uid;
+      // if (uid == null) throw Exception("User not logged in");
 
       // final createdAt = DateTime.now().toIso8601String().replaceAll(":", "-");
 
@@ -43,7 +43,9 @@ class DbManagerService {
         dotenv.env['PASSWORD'] ?? '',
       );
 
-      final encryptedComments = (publicData.additionalComments != "NULL")
+      final encryptedComments =
+          (publicData.additionalComments != "NULL" &&
+              publicData.additionalComments.trim().isNotEmpty)
           ? CryptoUtils.encryptString(
               publicData.additionalComments.trim(),
               newAesKey,

@@ -8,17 +8,10 @@ import 'package:flutter/material.dart';
 // import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 // import 'package:http/http.dart' as http;
-// import 'package:mobile_app/core/models/case.dart';
-// import 'package:mobile_app/core/models/user.dart';
-// import 'package:mobile_app/core/services/auth.dart';
-// import 'package:mobile_app/core/services/dbmanager.dart';
-// import 'package:mobile_app/core/services/storage.dart';
-// import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:mobile_app/features/auth/auth_gate.dart';
 import 'package:mobile_app/features/auth/login_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
 import 'package:mobile_app/firebase_options.dart';
-// import 'package:open_filex/open_filex.dart';
 
 void main() async {
   await dotenv.load(fileName: ".env");
@@ -47,105 +40,6 @@ void main() async {
   // } catch (e) {
   //   print("Error: $e");
   // }
-
-  // Case creation
-  // final imageBytes = await loadImageAsset("assets/tongue-cancer.jpg");
-  // DbManagerService.createCase(
-  //   caseId: "16082025test",
-  //   publicData: PublicCaseModel(
-  //     createdAt: DateTime.now(),
-  //     createdBy: "test_user",
-  //     alcohol: Habit.YES,
-  //     alcoholDuration: "2 years",
-  //     betelQuid: Habit.OCCASIONALLY,
-  //     betelQuidDuration: "1 year",
-  //     smoking: Habit.NO,
-  //     smokingDuration: "3 years",
-  //     oralHygieneProductsUsed: true,
-  //     oralHygieneProductTypeUsed: "Toothpaste",
-  //     slsContainingToothpaste: true,
-  //     slsContainingToothpasteUsed: "Darlie",
-  //     additionalComments: "Test case for clinician",
-  //   ),
-  //   privateData: PrivateCaseModel(
-  //     address:
-  //         "123 Example Street, Apartment 4B, Springfield, 11900, Example Country.",
-  //     age: "30",
-  //     attendingHospital: "Tan Tock Seng Hospital",
-  //     chiefComplaint: "Persistent headache and dizziness",
-  //     consentForm: generateDummyBytes(100),
-  //     dob: DateTime(1993, 1, 1),
-  //     ethnicity: "Chinese",
-  //     gender: Gender.MALE,
-  //     idNum: "701204072039",
-  //     idType: IdType.NRIC,
-  //     lesionClinicalPresentation:
-  //         "Small round lesion on the left forearm, approx. 2cm in diameter.",
-  //     medicalHistory: "No known chronic illnesses.",
-  //     medicationHistory: "Occasional use of paracetamol.",
-  //     name: "John Doe",
-  //     phoneNum: "60123456789",
-  //     presentingComplaintHistory:
-  //         "Symptoms started two weeks ago, worsening over the past three days.",
-  //     images: List.generate(9, (_) => imageBytes),
-  //   ),
-  // );
-
-  // Search a case
-  // final searchResult = await DbManagerService.searchCase(
-  //   caseId: "15082025test",
-  // );
-  // print(searchResult["case_data"].createdAt);
-  // print(searchResult["case_data"].address);
-  // print(searchResult["case_data"].additionalComments);
-
-  // Edit a case
-  // var encryptedData = CryptoUtils.encryptString(
-  //   base64Encode(generateDummyBytes(5)),
-  //   searchResult['aes'],
-  // );
-  // final biopsyReports = await Future.wait(
-  //   List.generate(9, (index) async {
-  //     final url = await StorageService.upload(
-  //       encrypted: encryptedData['ciphertext'],
-  //       fileName: "15082025test_$index.enc",
-  //       path: "biopsy_reports",
-  //     );
-  //     return {'url': url, 'iv': encryptedData['iv'] ?? "NULL"};
-  //   }),
-  // );
-  // final List<Diagnosis> diagnoses = List.generate(
-  //   9,
-  //   (index) => Diagnosis(
-  //     aiLesionType: LesionType.NULL,
-  //     biopsyClinicalDiagnosis: ClinicalDiagnosis.A,
-  //     biopsyLesionType: LesionType.BENIGN,
-  //     biopsyReport: biopsyReports[index],
-  //     coeClinicalDiagnosis: ClinicalDiagnosis.B,
-  //     coeLesionType: LesionType.BENIGN,
-  //   ),
-  // );
-  // final CaseEditModel editCase = CaseEditModel(
-  //   alcohol: Habit.NO,
-  //   alcoholDuration: "Nope",
-  //   betelQuid: Habit.YES,
-  //   betelQuidDuration: "2 years",
-  //   smoking: Habit.OCCASIONALLY,
-  //   smokingDuration: "10 years",
-  //   oralHygieneProductsUsed: true,
-  //   oralHygieneProductTypeUsed: "Toothpaste",
-  //   slsContainingToothpaste: true,
-  //   slsContainingToothpasteUsed: searchResult["case_data"]
-  //       .slsContainingToothpasteUsed, // default: always reuse original value during editing
-  //   additionalComments: searchResult["case_data"].additionalComments,
-  //   diagnoses: diagnoses,
-  //   aesKey: searchResult['aes'],
-  // );
-  // final editResult = await DbManagerService.editCase(
-  //   caseId: "15082025test",
-  //   caseData: editCase,
-  // );
-  // print(editResult);
 
   // Get undiagnosed cases
   // final undiagnosedCases = await DbManagerService.getUndiagnosedCases(

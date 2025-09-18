@@ -1,4 +1,5 @@
 // Used for create new case and edit case draft, can choose to delete draft / save draft / submit
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -25,8 +26,6 @@ class CreateCaseScreen extends StatefulWidget {
 }
 
 class _CreateCaseScreenState extends State<CreateCaseScreen> {
-  bool _isLoading = false;
-
   final _formKey = GlobalKey<FormState>();
 
   late final String caseId;
@@ -190,10 +189,53 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   }
 
   Future<void> _submitCase() async {
-    setState(() {
-      _isLoading = true;
-    });
-    if (_formKey.currentState!.validate()) {
+    if (!_formKey.currentState!.validate()) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Submitting Case"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text(
+                "The case is being submitted at the moment.\n\n"
+                "At the same time, please remember to save this Case ID for you to search it in the future:",
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(
+                      caseId,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: caseId));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Case ID copied")),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    try {
       DateTime? dob = _dobController.text.isNotEmpty
           ? DateTime.tryParse(_dobController.text)
           : null;
@@ -201,81 +243,93 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       String consentFormType = _consentForm != null
           ? _consentForm!.path.split('.').last.toLowerCase()
           : "NULL";
-
-      Uint8List consentBytes = _consentForm != null
-          ? await _consentForm!.readAsBytes()
-          : Uint8List(0);
-
+      String consentBytes = "NULL";
+      if (_consentForm != null) {
+        final bytes = await _consentForm!.readAsBytes();
+        consentBytes = base64Encode(bytes);
+      }
       final consentForm = {
         "fileType": consentFormType,
         "fileBytes": consentBytes,
       };
 
-      List<Uint8List?> imageBytes = [];
+      List<Uint8List> imageBytes = [];
       for (var img in _images) {
-        if (img != null) {
-          imageBytes.add(await File(img.path).readAsBytes());
-        } else {
-          imageBytes.add(null);
-        }
+        imageBytes.add(await File(img!.path).readAsBytes());
       }
+
+      final publicData = PublicCaseModel(
+        createdAt: createdAt,
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+        alcohol: _alcohol!,
+        alcoholDuration: _alcoholDurationController.text,
+        betelQuid: _betelQuid!,
+        betelQuidDuration: _betelQuidDurationController.text,
+        smoking: _smoking!,
+        smokingDuration: _smokingDurationController.text,
+        oralHygieneProductsUsed: _oralHygieneProductsUsed ?? false,
+        oralHygieneProductTypeUsed: _oralHygieneProductTypeUsedController.text,
+        slsContainingToothpaste: _slsContainingToothpaste ?? false,
+        slsContainingToothpasteUsed:
+            _slsContainingToothpasteUsedController.text,
+        additionalComments: _additionalCommentsController.text,
+      );
+
+      final privateData = PrivateCaseModel(
+        address: _addressController.text,
+        age: _ageController.text,
+        attendingHospital: _attendingHospitalController.text,
+        chiefComplaint: _chiefComplaintController.text,
+        consentForm: consentForm,
+        dob: dob!,
+        ethnicity: _ethnicityController.text,
+        gender: _gender!,
+        idNum: _idNumController.text,
+        idType: _idType!,
+        lesionClinicalPresentation: _lesionClinicialPresentationController.text,
+        medicalHistory: _medicalHistoryController.text,
+        medicationHistory: _medicationHistoryController.text,
+        name: _nameController.text,
+        phoneNum: _phoneNumberController.text,
+        presentingComplaintHistory: _presentingComplaintHistoryController.text,
+        images: imageBytes,
+      );
 
       String? result = await DbManagerService.createCase(
         caseId: caseId,
-        publicData: PublicCaseModel(
-          createdAt: createdAt,
-          createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
-          alcohol: _alcohol!,
-          alcoholDuration: _alcoholDurationController.text,
-          betelQuid: _betelQuid!,
-          betelQuidDuration: _betelQuidDurationController.text,
-          smoking: _smoking!,
-          smokingDuration: _smokingDurationController.text,
-          oralHygieneProductsUsed: _oralHygieneProductsUsed ?? false,
-          oralHygieneProductTypeUsed:
-              _oralHygieneProductTypeUsedController.text,
-          slsContainingToothpaste: _slsContainingToothpaste ?? false,
-          slsContainingToothpasteUsed:
-              _slsContainingToothpasteUsedController.text,
-          additionalComments: _additionalCommentsController.text,
-        ),
-        privateData: PrivateCaseModel(
-          address: _addressController.text,
-          age: _ageController.text,
-          attendingHospital: _attendingHospitalController.text,
-          chiefComplaint: _chiefComplaintController.text,
-          consentForm: consentForm,
-          dob: dob!,
-          ethnicity: _ethnicityController.text,
-          gender: _gender!,
-          idNum: _idNumController.text,
-          idType: _idType!,
-          lesionClinicalPresentation:
-              _lesionClinicialPresentationController.text,
-          medicalHistory: _medicalHistoryController.text,
-          medicationHistory: _medicationHistoryController.text,
-          name: _nameController.text,
-          phoneNum: _phoneNumberController.text,
-          presentingComplaintHistory:
-              _presentingComplaintHistoryController.text,
-          images: imageBytes.whereType<Uint8List>().toList(),
-        ),
+        publicData: publicData,
+        privateData: privateData,
       );
 
       if (result == caseId) {
+        Clipboard.setData(ClipboardData(text: caseId));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Case submitted successfully')),
+          const SnackBar(
+            content: Text(
+              'Case submitted successfully. Case ID copied to clipboard',
+            ),
+          ),
         );
+        Navigator.of(context, rootNavigator: true).pop();
         Navigator.pop(context, {
           'action': 'submit',
           'index': widget.draftIndex,
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting case: $result')),
+          SnackBar(
+            content: Text(
+              'Case submitted but server returned different Case ID: $result',
+            ),
+          ),
         );
+        Navigator.of(context, rootNavigator: true).pop();
       }
-      _isLoading = false;
+    } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error submitting case: $e')));
     }
   }
 
@@ -310,13 +364,19 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   Widget _buildTextField(
     TextEditingController controller,
     String label, {
+    bool required = true,
+    RegExp? allowedChars,
     bool readOnly = false,
     bool multiline = false,
+    String? Function(String?)? extraValidator,
   }) {
     return TextFormField(
       controller: controller,
       readOnly: readOnly,
       maxLines: multiline ? 4 : 1,
+      inputFormatters: allowedChars != null
+          ? [FilteringTextInputFormatter.allow(allowedChars)]
+          : null,
       decoration: InputDecoration(
         labelText: label,
         suffixIcon: readOnly
@@ -332,8 +392,15 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
             : null,
         border: readOnly ? const OutlineInputBorder() : null,
       ),
-      validator: (value) =>
-          value == null || value.isEmpty ? "Enter $label" : null,
+      validator: (value) {
+        if (required && (value == null || value.isEmpty)) {
+          return "Enter $label";
+        }
+        if (extraValidator != null) {
+          return extraValidator(value);
+        }
+        return null;
+      },
     );
   }
 
@@ -341,8 +408,9 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     String label,
     T? value,
     List<T> values,
-    void Function(T?) onChanged,
-  ) {
+    void Function(T?) onChanged, {
+    bool required = true,
+  }) {
     String displayValue(dynamic e) {
       if (e is Enum) return e.name;
       if (e is bool) return e ? "YES" : "NO";
@@ -356,7 +424,12 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           .map((e) => DropdownMenuItem(value: e, child: Text(displayValue(e))))
           .toList(),
       onChanged: onChanged,
-      validator: (val) => val == null ? "Select $label" : null,
+      validator: (val) {
+        if (required && val == null) {
+          return "Select $label";
+        }
+        return null;
+      },
     );
   }
 
@@ -385,7 +458,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
-  Future<void> _pickConsentForm() async {
+  Future<void> _pickConsentForm([FormFieldState<File?>? fieldState]) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: [
@@ -402,77 +475,97 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     );
 
     if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
       setState(() {
-        _consentForm = File(result.files.single.path!);
+        _consentForm = file;
       });
+
+      fieldState?.didChange(file);
     }
   }
 
   Future<void> _viewConsentForm() async {
-    final fileBytes = await _consentForm!.readAsBytes();
-    final fileType = _consentForm != null
-        ? _consentForm!.path.split('.').last
-        : "NULL";
-    switch (fileType.toLowerCase()) {
-      case "jpg":
-      case "jpeg":
-      case "png":
-      // case "gif":
-      case "webp":
-      case "bmp":
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text("File as ${fileType.toLowerCase()}"),
-            content: SingleChildScrollView(child: Image.memory(fileBytes)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Close"),
-              ),
-            ],
-          ),
-        );
-        break;
+    if (_consentForm == null) return;
 
-      case "pdf":
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text("File as ${fileType.toLowerCase()}"),
-            content: SizedBox(
-              width: MediaQuery.of(context).size.width * 0.9,
-              height: MediaQuery.of(context).size.height * 0.8,
-              child: SfPdfViewer.memory(fileBytes),
+    try {
+      final fileBytes = await _consentForm!.readAsBytes();
+      final fileType = _consentForm != null
+          ? _consentForm!.path.split('.').last
+          : "NULL";
+      switch (fileType.toLowerCase()) {
+        case "jpg":
+        case "jpeg":
+        case "png":
+        // case "gif":
+        case "webp":
+        case "bmp":
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text("File as ${fileType.toLowerCase()}"),
+              content: SingleChildScrollView(child: Image.memory(fileBytes)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Close"),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Close"),
+          );
+          break;
+
+        case "pdf":
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: Text("File as ${fileType.toLowerCase()}"),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: SfPdfViewer.memory(fileBytes),
               ),
-            ],
-          ),
-        );
-        break;
-
-      case "doc":
-      case "docx":
-        final tempDir = await getTemporaryDirectory();
-        final filePath = "${tempDir.path}/temp.$fileType";
-        final file = File(filePath);
-        await file.writeAsBytes(fileBytes);
-        OpenFilex.open(filePath);
-        break;
-
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Cannot preview file, unsupported file type ${fileType.toLowerCase()}",
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Close"),
+                ),
+              ],
             ),
-          ),
-        );
-        break;
+          );
+          break;
+
+        case "doc":
+        case "docx":
+          final tempDir = await getTemporaryDirectory();
+          final filePath = "${tempDir.path}/temp.$fileType";
+          final file = File(filePath);
+          await file.writeAsBytes(fileBytes);
+          final result = await OpenFilex.open(filePath);
+          if (result.type != ResultType.done) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "No app available to open ${fileType.toUpperCase()} file",
+                ),
+              ),
+            );
+          }
+          break;
+
+        default:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Cannot preview file, unsupported file type ${fileType.toLowerCase()}",
+              ),
+            ),
+          );
+          break;
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to open file: $e")));
     }
   }
 
@@ -566,7 +659,11 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                     ),
                     const SizedBox(height: 8),
 
-                    _buildTextField(_nameController, "Full Name"),
+                    _buildTextField(
+                      _nameController,
+                      "Full Name",
+                      allowedChars: RegExp(r"[A-Za-zÀ-ÖØ-öø-ÿ'\- ]"),
+                    ),
                     const SizedBox(height: 8),
 
                     Text("ID"),
@@ -584,7 +681,11 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           flex: 65,
-                          child: _buildTextField(_idNumController, "Number"),
+                          child: _buildTextField(
+                            _idNumController,
+                            "Number",
+                            allowedChars: RegExp(r"[A-Za-z0-9]"),
+                          ),
                         ),
                       ],
                     ),
@@ -635,7 +736,11 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                     _buildTextField(_ethnicityController, "Ethnicity"),
                     const SizedBox(height: 8),
 
-                    _buildTextField(_phoneNumberController, "Phone Number"),
+                    _buildTextField(
+                      _phoneNumberController,
+                      "Phone Number",
+                      allowedChars: RegExp(r"[0-9]"),
+                    ),
                     const SizedBox(height: 8),
 
                     _buildTextField(_addressController, "Address"),
@@ -648,36 +753,75 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                     const SizedBox(height: 8),
 
                     Text("Consent Form"),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _pickConsentForm,
-                          icon: _consentForm != null
-                              ? const Icon(Icons.edit)
-                              : const Icon(Icons.upload_file),
-                          label: _consentForm != null
-                              ? Text("Replace")
-                              : const Text("Upload"),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: _consentForm == null
-                              ? () =>
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text(
-                                          "No consent form available",
-                                        ),
-                                      ),
-                                    )
-                              : () => _viewConsentForm,
-                          icon: const Icon(Icons.remove_red_eye),
-                          label: const Text("View"),
-                        ),
-                      ],
-                    ),
+                    FormField<File?>(
+                      initialValue: _consentForm,
+                      validator: (file) {
+                        if (file == null) return "Upload consent form";
 
+                        final maxMb = 5;
+                        try {
+                          final size = file.lengthSync();
+                          if (size > maxMb * 1024 * 1024) {
+                            return "File too large (max $maxMb MB)";
+                          }
+                        } catch (e) {
+                          return "Cannot access file";
+                        }
+                        return null;
+                      },
+
+                      builder: (fieldState) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () => _pickConsentForm(fieldState),
+                                  icon: _consentForm != null
+                                      ? const Icon(Icons.edit)
+                                      : const Icon(Icons.upload_file),
+                                  label: _consentForm != null
+                                      ? Text("Replace")
+                                      : const Text("Upload"),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  onPressed: _consentForm == null
+                                      ? () => ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  "No consent form available",
+                                                ),
+                                              ),
+                                            )
+                                      : _viewConsentForm,
+                                  icon: const Icon(Icons.remove_red_eye),
+                                  label: const Text("View"),
+                                ),
+                              ],
+                            ),
+
+                            if (fieldState.hasError)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 8.0,
+                                  left: 4.0,
+                                ),
+                                child: Text(
+                                  fieldState.errorText ?? '',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                    fontSize: 12.0,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                     const SizedBox(height: 8),
 
                     Row(
@@ -790,6 +934,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                             [true, false],
                             (val) =>
                                 setState(() => _slsContainingToothpaste = val),
+                            required: false,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -798,6 +943,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                           child: _buildTextField(
                             _slsContainingToothpasteUsedController,
                             "Type",
+                            required: false,
                           ),
                         ),
                       ],
@@ -815,6 +961,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                             [true, false],
                             (val) =>
                                 setState(() => _oralHygieneProductsUsed = val),
+                            required: false,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -823,6 +970,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                           child: _buildTextField(
                             _oralHygieneProductTypeUsedController,
                             "Type",
+                            required: false,
                           ),
                         ),
                       ],
@@ -832,90 +980,136 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                     _buildTextField(
                       _additionalCommentsController,
                       "Additional Comments",
+                      required: false,
                       multiline: true,
                     ),
                     const SizedBox(height: 8),
 
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.black26),
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        margin: const EdgeInsets.all(16.0),
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
+                    FormField<List<XFile?>>(
+                      initialValue: _images,
+                      validator: (value) {
+                        if (value == null || value.any((img) => img == null)) {
+                          return "Please upload all 9 oral cavity images";
+                        }
+                        return null;
+                      },
+                      builder: (field) {
+                        return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Oral Cavity Images of 9 Areas',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            SizedBox(height: 16.0),
-                            Text(
-                              'Upload images for each designated region of the mouth.',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            SizedBox(height: 16.0),
-                            GridView.count(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              mainAxisSpacing: 16.0,
-                              crossAxisSpacing: 16.0,
-                              crossAxisCount: 2,
-                              children: [
-                                ImageCard(
-                                  title: 'IMG1:\nTongue',
-                                  imageFile: _images[0],
-                                  onTap: () => _showImageSourceActionSheet(0),
+                            Align(
+                              alignment: Alignment.topCenter,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.black26),
+                                  borderRadius: BorderRadius.circular(12.0),
                                 ),
-                                ImageCard(
-                                  title: 'IMG2:\nBelow Tongue',
-                                  imageFile: _images[1],
-                                  onTap: () => _showImageSourceActionSheet(1),
+                                margin: const EdgeInsets.all(8.0),
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Oral Cavity Images of 9 Areas',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 16.0),
+                                    Text(
+                                      'Upload images for each designated region of the mouth.',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 16.0),
+                                    GridView.count(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      mainAxisSpacing: 16.0,
+                                      crossAxisSpacing: 16.0,
+                                      crossAxisCount: 2,
+                                      children: [
+                                        ImageCard(
+                                          title: 'IMG1:\nTongue',
+                                          imageFile: _images[0],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(0),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG2:\nBelow Tongue',
+                                          imageFile: _images[1],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(1),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG3:\nLeft of Tongue',
+                                          imageFile: _images[2],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(2),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG4:\nRight of Tongue',
+                                          imageFile: _images[3],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(3),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG5:\nPalate',
+                                          imageFile: _images[4],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(4),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG6:\nLeft Cheek',
+                                          imageFile: _images[5],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(5),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG7:\nRight Cheek',
+                                          imageFile: _images[6],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(6),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG8:\nUpper Lip / Gum',
+                                          imageFile: _images[7],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(7),
+                                        ),
+                                        ImageCard(
+                                          title: 'IMG9:\nLower Lip / Gum',
+                                          imageFile: _images[8],
+                                          onTap: () =>
+                                              _showImageSourceActionSheet(8),
+                                        ),
+                                      ],
+                                    ),
+                                    if (field.hasError)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 8.0,
+                                        ),
+                                        child: Text(
+                                          field.errorText!,
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.error,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                ImageCard(
-                                  title: 'IMG3:\nLeft of Tongue',
-                                  imageFile: _images[2],
-                                  onTap: () => _showImageSourceActionSheet(2),
-                                ),
-                                ImageCard(
-                                  title: 'IMG4:\nRight of Tongue',
-                                  imageFile: _images[3],
-                                  onTap: () => _showImageSourceActionSheet(3),
-                                ),
-                                ImageCard(
-                                  title: 'IMG5:\nPalate',
-                                  imageFile: _images[4],
-                                  onTap: () => _showImageSourceActionSheet(4),
-                                ),
-                                ImageCard(
-                                  title: 'IMG6:\nLeft Cheek',
-                                  imageFile: _images[5],
-                                  onTap: () => _showImageSourceActionSheet(5),
-                                ),
-                                ImageCard(
-                                  title: 'IMG7:\nRight Cheek',
-                                  imageFile: _images[6],
-                                  onTap: () => _showImageSourceActionSheet(6),
-                                ),
-                                ImageCard(
-                                  title: 'IMG8:\nUpper Lip / Gum',
-                                  imageFile: _images[7],
-                                  onTap: () => _showImageSourceActionSheet(7),
-                                ),
-                                ImageCard(
-                                  title: 'IMG9:\nLower Lip / Gum',
-                                  imageFile: _images[8],
-                                  onTap: () => _showImageSourceActionSheet(8),
-                                ),
-                              ],
+                              ),
                             ),
                           ],
-                        ),
-                      ),
+                        );
+                      },
                     ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -958,12 +1152,8 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                         onConfirm: _submitCase,
                       );
                     },
-                    icon: _isLoading
-                        ? const CircularProgressIndicator()
-                        : const Icon(Icons.send),
-                    label: _isLoading
-                        ? const Text("Submitting...")
-                        : const Text("Submit"),
+                    icon: const Icon(Icons.send),
+                    label: const Text("Submit"),
                   ),
                 ],
               ),
