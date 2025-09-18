@@ -20,6 +20,8 @@ class DiagnoseCaseScreen extends StatefulWidget {
 }
 
 class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
+  final _formKey = GlobalKey<FormState>();
+
   int _selectedImageIndex = 0;
   final List<LesionType> lesionTypes = List.filled(9, LesionType.NULL);
   final List<ClinicalDiagnosis> clinicalDiagnoses = List.filled(
@@ -302,16 +304,31 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         const SizedBox(height: 8),
 
         _buildTextField(additionalCommentsController, "Additional Comments"),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
 
-        Text("Oral Cavity Image"),
+        Text(
+          "Oral Cavity Images of 9 Areas",
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         DropdownButton<int>(
           value: _selectedImageIndex,
           isExpanded: true,
-          items: List.generate(
-            imageNamesList.length,
-            (i) => DropdownMenuItem(value: i, child: Text(imageNamesList[i])),
-          ),
+          items: List.generate(imageNamesList.length, (i) {
+            final incomplete =
+                lesionTypes[i] == LesionType.NULL ||
+                clinicalDiagnoses[i] == ClinicalDiagnosis.NULL;
+
+            return DropdownMenuItem(
+              value: i,
+              child: Text(
+                incomplete ? '${imageNamesList[i]} *' : imageNamesList[i],
+                style: TextStyle(
+                  color: incomplete ? Colors.red : null,
+                  fontWeight: incomplete ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            );
+          }),
           onChanged: (val) {
             if (val != null) setState(() => _selectedImageIndex = val);
           },
@@ -364,6 +381,52 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           ],
         ),
         const SizedBox(height: 8),
+
+        FormField<void>(
+          initialValue: null,
+          validator: (_) {
+            final missingLesion = lesionTypes
+                .asMap()
+                .entries
+                .where((e) => e.value == LesionType.NULL)
+                .map((e) => e.key + 1)
+                .toList();
+            final missingDiag = clinicalDiagnoses
+                .asMap()
+                .entries
+                .where((e) => e.value == ClinicalDiagnosis.NULL)
+                .map((e) => e.key + 1)
+                .toList();
+
+            if (missingLesion.isNotEmpty || missingDiag.isNotEmpty) {
+              final parts = <String>[];
+              if (missingLesion.isNotEmpty) {
+                parts.add('Lesion type missing: ${missingLesion.join(', ')}');
+              }
+              if (missingDiag.isNotEmpty) {
+                parts.add(
+                  'Clinical diagnosis missing: ${missingDiag.join(', ')}',
+                );
+              }
+              return parts.join('. ');
+            }
+            return null;
+          },
+          builder: (field) {
+            return field.hasError
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      field.errorText!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink();
+          },
+        ),
       ],
     );
   }
@@ -371,6 +434,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
   Widget _buildTextField(
     TextEditingController controller,
     String label, {
+    bool required = false,
     bool readOnly = true,
     bool multiline = false,
     bool noExpand = false,
@@ -395,8 +459,12 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             : null,
         border: readOnly ? const OutlineInputBorder() : null,
       ),
-      validator: (value) =>
-          value == null || value.isEmpty ? "Enter $label" : null,
+      validator: (value) {
+        if (required && (value == null || value.isEmpty)) {
+          return "Enter $label";
+        }
+        return null;
+      },
     );
   }
 
@@ -404,8 +472,9 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     String label,
     T? value,
     List<T> values,
-    void Function(T?) onChanged,
-  ) {
+    void Function(T?) onChanged, {
+    bool required = true,
+  }) {
     String displayValue(dynamic e) {
       if (e is Enum) return e.name;
       if (e is bool) return e ? "YES" : "NO";
@@ -419,7 +488,12 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           .map((e) => DropdownMenuItem(value: e, child: Text(displayValue(e))))
           .toList(),
       onChanged: onChanged,
-      validator: (val) => val == null ? "Select $label" : null,
+      validator: (val) {
+        if (required && val == null) {
+          return "Select $label";
+        }
+        return null;
+      },
     );
   }
 
@@ -433,6 +507,58 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
   }
 
   Future<void> _submitDiagnosis() async {
+    if (!_formKey.currentState!.validate()) {
+      int firstMissingLesion = lesionTypes.indexWhere(
+        (t) => t == LesionType.NULL,
+      );
+      int firstMissingDiag = clinicalDiagnoses.indexWhere(
+        (d) => d == ClinicalDiagnosis.NULL,
+      );
+
+      int firstMissing = -1;
+      if (firstMissingLesion != -1 && firstMissingDiag != -1) {
+        firstMissing = (firstMissingLesion < firstMissingDiag)
+            ? firstMissingLesion
+            : firstMissingDiag;
+      } else if (firstMissingLesion != -1) {
+        firstMissing = firstMissingLesion;
+      } else if (firstMissingDiag != -1) {
+        firstMissing = firstMissingDiag;
+      }
+
+      if (firstMissing != -1) {
+        setState(() {
+          _selectedImageIndex = firstMissing;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please fill lesion type and clinical diagnosis for all 9 images. Jumped to first missing.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Submitting Diagnosis"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text("Your diagnosis is being submitted at the moment."),
+            ],
+          ),
+        );
+      },
+    );
+
     try {
       final List<ClinicianDiagnosis> clinicianDiagnoses = List.generate(
         9,
@@ -454,6 +580,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
       );
 
       if (result == widget.caseInfo["case_id"]) {
+        Navigator.of(context, rootNavigator: true).pop();
         Navigator.pop(context, {
           'action': 'diagnosed',
           'index': widget.caseIndex,
@@ -463,11 +590,13 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           SnackBar(content: Text("Diagnosis submitted successfully.")),
         );
       } else {
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Unexpected response from server")),
         );
       }
     } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Failed to submit diagnosis: $e")));
@@ -508,41 +637,44 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
       appBar: AppBar(title: const Text("Diagnose Case")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: _buildDiagnosisForm(widget.caseInfo),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: _buildDiagnosisForm(widget.caseInfo),
+                ),
               ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _confirmAction(
-                      title: "Cancel Diagnosis",
-                      message: "Are you sure you want to cancel diagnosis?",
-                      onConfirm: _cancelDiagnosis,
-                    );
-                  },
-                  icon: const Icon(Icons.cancel),
-                  label: const Text("Cancel Diagnosis"),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    _confirmAction(
-                      title: "Submit Diagnosis",
-                      message: "Are you sure you want to submit diagnosis?",
-                      onConfirm: _submitDiagnosis,
-                    );
-                  },
-                  icon: const Icon(Icons.check),
-                  label: const Text("Submit Diagnosis"),
-                ),
-              ],
-            ),
-          ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      _confirmAction(
+                        title: "Cancel Diagnosis",
+                        message: "Are you sure you want to cancel diagnosis?",
+                        onConfirm: _cancelDiagnosis,
+                      );
+                    },
+                    icon: const Icon(Icons.cancel),
+                    label: const Text("Cancel Diagnosis"),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      _confirmAction(
+                        title: "Submit Diagnosis",
+                        message: "Are you sure you want to submit diagnosis?",
+                        onConfirm: _submitDiagnosis,
+                      );
+                    },
+                    icon: const Icon(Icons.check),
+                    label: const Text("Submit Diagnosis"),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
