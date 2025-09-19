@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DiagnoseCaseScreen extends StatefulWidget {
   final Map<String, dynamic> caseInfo;
@@ -20,91 +21,138 @@ class DiagnoseCaseScreen extends StatefulWidget {
 }
 
 class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
-  final _formKey = GlobalKey<FormState>();
+  late final CaseRetrieveModel _caseData;
 
+  final TextEditingController _caseIdController = TextEditingController();
+  final TextEditingController _createdAtController = TextEditingController();
+  final TextEditingController _submittedAtController = TextEditingController();
+  final TextEditingController _createdByController = TextEditingController();
+  final TextEditingController _ageController = TextEditingController();
+  final TextEditingController _genderController = TextEditingController();
+  final TextEditingController _ethnicityController = TextEditingController();
+  final TextEditingController _smokingController = TextEditingController();
+  final TextEditingController _smokingDurationController =
+      TextEditingController();
+  final TextEditingController _betelQuidController = TextEditingController();
+  final TextEditingController _betelQuidDurationController =
+      TextEditingController();
+  final TextEditingController _alcoholController = TextEditingController();
+  final TextEditingController _alcoholDurationController =
+      TextEditingController();
+  final TextEditingController _lesionClinicalPresentationController =
+      TextEditingController();
+  final TextEditingController _chiefComplaintController =
+      TextEditingController();
+  final TextEditingController _presentingComplaintHistoryController =
+      TextEditingController();
+  final TextEditingController _medicationHistoryController =
+      TextEditingController();
+  final TextEditingController _medicalHistoryController =
+      TextEditingController();
+  final TextEditingController _slsContainingToothpasteController =
+      TextEditingController();
+  final TextEditingController _slsContainingToothpasteUsedController =
+      TextEditingController();
+  final TextEditingController _oralHygieneProductsUsedController =
+      TextEditingController();
+  final TextEditingController _oralHygieneProductTypeUsedController =
+      TextEditingController();
+  final TextEditingController _additionalCommentsController =
+      TextEditingController();
+  List<Uint8List> _images = [];
+
+  final _formKey = GlobalKey<FormState>();
+  final List<String> _imageNamesList = [
+    "IMG1: Tongue",
+    "IMG2: Below Tongue",
+    "IMG3: Left of Tongue",
+    "IMG4: Right of Tongue",
+    "IMG5: Palate",
+    "IMG6: Left Cheek",
+    "IMG7: Right Cheek",
+    "IMG8: Upper Lip / Gum",
+    "IMG9: Lower Lip / Gum",
+  ];
   int _selectedImageIndex = 0;
-  final List<LesionType> lesionTypes = List.filled(9, LesionType.NULL);
-  final List<ClinicalDiagnosis> clinicalDiagnoses = List.filled(
+  final List<LesionType> _lesionTypes = List.filled(9, LesionType.NULL);
+  final List<ClinicalDiagnosis> _clinicalDiagnoses = List.filled(
     9,
     ClinicalDiagnosis.NULL,
   );
-  final List<bool> lowQualityFlags = List.filled(9, false);
+  final List<bool> _lowQualityFlags = List.filled(9, false);
 
-  Widget _buildDiagnosisForm(Map<String, dynamic> caseInfo) {
-    final CaseRetrieveModel caseData = caseInfo["case_data"];
-    final caseIdController = TextEditingController(
-      text: caseInfo["case_id"] ?? "",
-    );
-    final createdAtController = TextEditingController(text: caseData.createdAt);
-    final submittedAtController = TextEditingController(
-      text: caseData.submittedAt,
-    );
-    final createdByController = TextEditingController(text: caseData.createdBy);
-    final ageController = TextEditingController(text: caseData.age);
-    final genderController = TextEditingController(text: caseData.gender);
-    final ethnicityController = TextEditingController(text: caseData.ethnicity);
-    final smokingController = TextEditingController(
-      text: caseData.smoking.toShortString,
-    );
-    final smokingDurationController = TextEditingController(
-      text: caseData.smokingDuration,
-    );
-    final betelQuidController = TextEditingController(
-      text: caseData.betelQuid.toShortString,
-    );
-    final betelQuidDurationController = TextEditingController(
-      text: caseData.betelQuidDuration,
-    );
-    final alcoholController = TextEditingController(
-      text: caseData.alcohol.toShortString,
-    );
-    final alcoholDurationController = TextEditingController(
-      text: caseData.alcoholDuration,
-    );
-    final lesionClinicialPresentationController = TextEditingController(
-      text: caseData.lesionClinicalPresentation,
-    );
-    final chiefComplaintController = TextEditingController(
-      text: caseData.chiefComplaint,
-    );
-    final presentingComplaintHistoryController = TextEditingController(
-      text: caseData.presentingComplaintHistory,
-    );
-    final medicationHistoryController = TextEditingController(
-      text: caseData.medicationHistory,
-    );
-    final medicalHistoryController = TextEditingController(
-      text: caseData.medicalHistory,
-    );
-    final slsContainingToothpasteController = TextEditingController(
-      text: caseData.slsContainingToothpaste ? "YES" : "NO",
-    );
-    final slsContainingToothpasteUsedController = TextEditingController(
-      text: caseData.slsContainingToothpasteUsed,
-    );
-    final oralHygieneProductsUsedController = TextEditingController(
-      text: caseData.oralHygieneProductsUsed ? "YES" : "NO",
-    );
-    final oralHygieneProductTypeUsedController = TextEditingController(
-      text: caseData.oralHygieneProductTypeUsed,
-    );
-    final additionalCommentsController = TextEditingController(
-      text: caseData.additionalComments,
-    );
-    final List<Uint8List> images = caseData.images;
+  @override
+  void initState() {
+    super.initState();
+    _populateData();
+  }
 
-    final List<String> imageNamesList = [
-      "IMG1: Tongue",
-      "IMG2: Below Tongue",
-      "IMG3: Left of Tongue",
-      "IMG4: Right of Tongue",
-      "IMG5: Palate",
-      "IMG6: Left Cheek",
-      "IMG7: Right Cheek",
-      "IMG8: Upper Lip / Gum",
-      "IMG9: Lower Lip / Gum",
-    ];
+  void _populateData() {
+    _caseData = widget.caseInfo["case_data"];
 
+    _caseIdController.text = widget.caseInfo["case_id"] ?? "";
+    _createdAtController.text = _caseData.createdAt;
+    _submittedAtController.text = _caseData.submittedAt;
+    _createdByController.text = _caseData.createdBy;
+    _ageController.text = _caseData.age;
+    _genderController.text = _caseData.gender;
+    _ethnicityController.text = _caseData.ethnicity;
+    _smokingController.text = _caseData.smoking.toShortString;
+    _smokingDurationController.text = _caseData.smokingDuration;
+    _betelQuidController.text = _caseData.betelQuid.toShortString;
+    _betelQuidDurationController.text = _caseData.betelQuidDuration;
+    _alcoholController.text = _caseData.alcohol.toShortString;
+    _alcoholDurationController.text = _caseData.alcoholDuration;
+    _lesionClinicalPresentationController.text =
+        _caseData.lesionClinicalPresentation;
+    _chiefComplaintController.text = _caseData.chiefComplaint;
+    _presentingComplaintHistoryController.text =
+        _caseData.presentingComplaintHistory;
+    _medicationHistoryController.text = _caseData.medicationHistory;
+    _medicalHistoryController.text = _caseData.medicalHistory;
+    _slsContainingToothpasteController.text = _caseData.slsContainingToothpaste
+        ? "YES"
+        : "NO";
+    _slsContainingToothpasteUsedController.text =
+        _caseData.slsContainingToothpasteUsed;
+    _oralHygieneProductsUsedController.text = _caseData.oralHygieneProductsUsed
+        ? "YES"
+        : "NO";
+    _oralHygieneProductTypeUsedController.text =
+        _caseData.oralHygieneProductTypeUsed;
+    _additionalCommentsController.text = _caseData.additionalComments;
+    _images = _caseData.images;
+  }
+
+  @override
+  void dispose() {
+    _caseIdController.dispose();
+    _createdAtController.dispose();
+    _submittedAtController.dispose();
+    _createdByController.dispose();
+    _ageController.dispose();
+    _genderController.dispose();
+    _ethnicityController.dispose();
+    _smokingController.dispose();
+    _smokingDurationController.dispose();
+    _betelQuidController.dispose();
+    _betelQuidDurationController.dispose();
+    _alcoholController.dispose();
+    _alcoholDurationController.dispose();
+    _lesionClinicalPresentationController.dispose();
+    _chiefComplaintController.dispose();
+    _presentingComplaintHistoryController.dispose();
+    _medicationHistoryController.dispose();
+    _medicalHistoryController.dispose();
+    _slsContainingToothpasteController.dispose();
+    _slsContainingToothpasteUsedController.dispose();
+    _oralHygieneProductsUsedController.dispose();
+    _oralHygieneProductTypeUsedController.dispose();
+    _additionalCommentsController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildDiagnosisForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -113,7 +161,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                caseIdController,
+                _caseIdController,
                 "Case ID",
                 noExpand: true,
               ),
@@ -122,7 +170,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                createdByController,
+                _createdByController,
                 "Created By",
                 noExpand: true,
               ),
@@ -131,23 +179,23 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(createdAtController, "Created At"),
+        _buildTextField(_createdAtController, "Created At"),
         const SizedBox(height: 8),
 
-        _buildTextField(submittedAtController, "Submitted At"),
+        _buildTextField(_submittedAtController, "Submitted At"),
         const SizedBox(height: 20),
 
         Row(
           children: [
             Expanded(
               flex: 1,
-              child: _buildTextField(ageController, "Age", noExpand: true),
+              child: _buildTextField(_ageController, "Age", noExpand: true),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 1,
               child: _buildTextField(
-                genderController,
+                _genderController,
                 "Gender",
                 noExpand: true,
               ),
@@ -156,7 +204,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                ethnicityController,
+                _ethnicityController,
                 "Ethnicity",
                 noExpand: true,
               ),
@@ -170,7 +218,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                smokingController,
+                _smokingController,
                 "Smoking",
                 noExpand: true,
               ),
@@ -179,7 +227,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                smokingDurationController,
+                _smokingDurationController,
                 "Duration",
                 noExpand: true,
               ),
@@ -193,7 +241,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                betelQuidController,
+                _betelQuidController,
                 "Betel Quid",
                 noExpand: true,
               ),
@@ -202,7 +250,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                betelQuidDurationController,
+                _betelQuidDurationController,
                 "Duration",
                 noExpand: true,
               ),
@@ -216,7 +264,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                alcoholController,
+                _alcoholController,
                 "Alcohol",
                 noExpand: true,
               ),
@@ -225,7 +273,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                alcoholDurationController,
+                _alcoholDurationController,
                 "Duration",
                 noExpand: true,
               ),
@@ -235,24 +283,24 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         const SizedBox(height: 8),
 
         _buildTextField(
-          lesionClinicialPresentationController,
+          _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(chiefComplaintController, "Chief Complaint"),
+        _buildTextField(_chiefComplaintController, "Chief Complaint"),
         const SizedBox(height: 8),
 
         _buildTextField(
-          presentingComplaintHistoryController,
+          _presentingComplaintHistoryController,
           "Presenting Complaint History",
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(medicationHistoryController, "Medication History"),
+        _buildTextField(_medicationHistoryController, "Medication History"),
         const SizedBox(height: 8),
 
-        _buildTextField(medicalHistoryController, "Medical History"),
+        _buildTextField(_medicalHistoryController, "Medical History"),
         const SizedBox(height: 8),
 
         Text("SLS Containing Toothpaste"),
@@ -261,7 +309,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 35,
               child: _buildTextField(
-                slsContainingToothpasteController,
+                _slsContainingToothpasteController,
                 "Used",
                 noExpand: true,
               ),
@@ -270,7 +318,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 65,
               child: _buildTextField(
-                slsContainingToothpasteUsedController,
+                _slsContainingToothpasteUsedController,
                 "Type",
                 noExpand: true,
               ),
@@ -285,7 +333,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 35,
               child: _buildTextField(
-                oralHygieneProductsUsedController,
+                _oralHygieneProductsUsedController,
                 "Used",
                 noExpand: true,
               ),
@@ -294,7 +342,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             Expanded(
               flex: 65,
               child: _buildTextField(
-                oralHygieneProductTypeUsedController,
+                _oralHygieneProductTypeUsedController,
                 "Type",
                 noExpand: true,
               ),
@@ -303,7 +351,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(additionalCommentsController, "Additional Comments"),
+        _buildTextField(_additionalCommentsController, "Additional Comments"),
         const SizedBox(height: 20),
 
         Text(
@@ -313,15 +361,15 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         DropdownButton<int>(
           value: _selectedImageIndex,
           isExpanded: true,
-          items: List.generate(imageNamesList.length, (i) {
+          items: List.generate(_imageNamesList.length, (i) {
             final incomplete =
-                lesionTypes[i] == LesionType.NULL ||
-                clinicalDiagnoses[i] == ClinicalDiagnosis.NULL;
+                _lesionTypes[i] == LesionType.NULL ||
+                _clinicalDiagnoses[i] == ClinicalDiagnosis.NULL;
 
             return DropdownMenuItem(
               value: i,
               child: Text(
-                incomplete ? '${imageNamesList[i]} *' : imageNamesList[i],
+                incomplete ? '${_imageNamesList[i]} *' : _imageNamesList[i],
                 style: TextStyle(
                   color: incomplete ? Colors.red : null,
                   fontWeight: incomplete ? FontWeight.bold : FontWeight.normal,
@@ -339,9 +387,9 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           height: 200,
           color: Colors.grey[300],
           child: Center(
-            child: images.isNotEmpty
+            child: _images.isNotEmpty
                 ? Image.memory(
-                    images[_selectedImageIndex],
+                    _images[_selectedImageIndex],
                     fit: BoxFit.contain,
                     width: double.infinity,
                     height: double.infinity,
@@ -353,18 +401,18 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
 
         _buildDropdown(
           "Diagnosis - Lesion Type",
-          lesionTypes[_selectedImageIndex],
+          _lesionTypes[_selectedImageIndex],
           LesionType.values,
-          (val) => setState(() => lesionTypes[_selectedImageIndex] = val!),
+          (val) => setState(() => _lesionTypes[_selectedImageIndex] = val!),
         ),
         const SizedBox(height: 8),
 
         _buildDropdown(
           "Diagnosis - Clinical Diagnosis",
-          clinicalDiagnoses[_selectedImageIndex],
+          _clinicalDiagnoses[_selectedImageIndex],
           ClinicalDiagnosis.values,
           (val) =>
-              setState(() => clinicalDiagnoses[_selectedImageIndex] = val!),
+              setState(() => _clinicalDiagnoses[_selectedImageIndex] = val!),
         ),
         const SizedBox(height: 8),
 
@@ -373,9 +421,9 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           children: [
             const Text("Low Quality Image?"),
             Switch(
-              value: lowQualityFlags[_selectedImageIndex],
+              value: _lowQualityFlags[_selectedImageIndex],
               onChanged: (val) {
-                setState(() => lowQualityFlags[_selectedImageIndex] = val);
+                setState(() => _lowQualityFlags[_selectedImageIndex] = val);
               },
             ),
           ],
@@ -385,13 +433,13 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         FormField<void>(
           initialValue: null,
           validator: (_) {
-            final missingLesion = lesionTypes
+            final missingLesion = _lesionTypes
                 .asMap()
                 .entries
                 .where((e) => e.value == LesionType.NULL)
                 .map((e) => e.key + 1)
                 .toList();
-            final missingDiag = clinicalDiagnoses
+            final missingDiag = _clinicalDiagnoses
                 .asMap()
                 .entries
                 .where((e) => e.value == ClinicalDiagnosis.NULL)
@@ -508,10 +556,10 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
 
   Future<void> _submitDiagnosis() async {
     if (!_formKey.currentState!.validate()) {
-      int firstMissingLesion = lesionTypes.indexWhere(
+      int firstMissingLesion = _lesionTypes.indexWhere(
         (t) => t == LesionType.NULL,
       );
-      int firstMissingDiag = clinicalDiagnoses.indexWhere(
+      int firstMissingDiag = _clinicalDiagnoses.indexWhere(
         (d) => d == ClinicalDiagnosis.NULL,
       );
 
@@ -560,13 +608,27 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     );
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final String userId =
+          prefs.getString("userId") ??
+          FirebaseAuth.instance.currentUser?.uid ??
+          "unknown";
+      if (userId == "unknown") {
+        throw Exception("User ID not found. Please log in and try again.");
+      }
+
+      if (widget.caseInfo["case_id"] == null) {
+        throw Exception("Case ID is missing. Please refresh and try again.");
+      }
+      String caseId = widget.caseInfo["case_id"];
+
       final List<ClinicianDiagnosis> clinicianDiagnoses = List.generate(
         9,
         (index) => ClinicianDiagnosis(
-          clinicianID: FirebaseAuth.instance.currentUser?.uid ?? "unknown",
-          clinicalDiagnosis: clinicalDiagnoses[index],
-          lesionType: lesionTypes[index],
-          lowQuality: lowQualityFlags[index],
+          clinicianID: userId,
+          clinicalDiagnosis: _clinicalDiagnoses[index],
+          lesionType: _lesionTypes[index],
+          lowQuality: _lowQualityFlags[index],
         ),
       );
 
@@ -575,11 +637,11 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
       );
 
       final result = await DbManagerService.diagnoseCase(
-        caseId: widget.caseInfo["case_id"],
+        caseId: caseId,
         diagnoses: diagnoseCase,
       );
 
-      if (result == widget.caseInfo["case_id"]) {
+      if (result == caseId) {
         Navigator.of(context, rootNavigator: true).pop();
         Navigator.pop(context, {
           'action': 'diagnosed',
@@ -642,9 +704,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           child: Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  child: _buildDiagnosisForm(widget.caseInfo),
-                ),
+                child: SingleChildScrollView(child: _buildDiagnosisForm()),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

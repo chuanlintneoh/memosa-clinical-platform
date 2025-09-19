@@ -309,8 +309,17 @@ class DbManager:
                         "fileBytes": "NULL"
                     })
                     if consent_form["fileBytes"] != "NULL":
-                        with open(consent_dir / f"{case['case_id']}.{str(consent_form['fileType']).lower()}", "wb") as f:
-                            f.write(base64.b64decode(consent_form["fileBytes"]))
+                        file_bytes = consent_form["fileBytes"]
+                        if isinstance(file_bytes, str):
+                            decoded_bytes = base64.b64decode(file_bytes)
+                        elif isinstance(file_bytes, list):
+                            decoded_bytes = bytes(file_bytes)
+                        else:
+                            print(f"[DbManager] Skipped consent form of case {case['case_id']} with unknown fileBytes type: {type(file_bytes)}")
+                            decoded_bytes = None
+                        if decoded_bytes:
+                            with open(consent_dir / f"{case['case_id']}.{str(consent_form['fileType']).lower()}", "wb") as f:
+                                f.write(decoded_bytes)
 
             additional_comments_obj = case.get("additional_comments", {"ciphertext": "NULL", "iv": "NULL"})
             if (additional_comments_obj.get("ciphertext") != "NULL" and additional_comments_obj.get("iv") != "NULL" and aes_key):
@@ -399,7 +408,7 @@ class DbManager:
                             row[f"{clinician}_low_quality"] = "NULL"
                     rows.append(row)
 
-                    biopsy_report_obj = case.get("biopsy_report", {
+                    biopsy_report_obj = diagnose.get("biopsy_report", {
                         "url": "NULL",
                         "iv": "NULL",
                         "fileType": "NULL"
@@ -411,8 +420,16 @@ class DbManager:
                             iv_b64=biopsy_report_obj["iv"],
                             aes_key=aes_key
                         )
-                        with open(reports_dir / f"{case['case_id']}_{i}.{str(biopsy_report_obj['fileType']).lower()}", "wb") as f:
-                            f.write(base64.b64decode(biopsy_report))
+                        if isinstance(biopsy_report, str):
+                            decoded_bytes = base64.b64decode(biopsy_report)
+                        elif isinstance(biopsy_report, list):
+                            decoded_bytes = bytes(biopsy_report)
+                        else:
+                            print(f"[DbManager] Skipped biopsy report of case {case['case_id']} image {i} with unknown fileBytes type: {type(biopsy_report)}")
+                            decoded_bytes = None
+                        if decoded_bytes:
+                            with open(reports_dir / f"{case['case_id']}_{i}.{str(biopsy_report_obj['fileType']).lower()}", "wb") as f:
+                                f.write(decoded_bytes)
 
         mastersheet_df = pd.DataFrame(rows)
         print(f"[DbManager] Generated Sheet 1: Mastersheet with {len(mastersheet_df)} rows and {len(mastersheet_df.columns)} columns.")

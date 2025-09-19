@@ -64,11 +64,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
           result.containsKey("email") &&
           result.containsKey("name") &&
           result.containsKey("role")) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Registration successful, please log in"),
-          ),
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text("Success"),
+              content: const Text("Registration successful. Please log in."),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  },
+                  child: const Text("OK"),
+                ),
+              ],
+            );
+          },
         );
 
         _nameController.clear();

@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile_app/core/models/user.dart';
 
 class AuthService {
   static const String _baseUrl = "http://10.0.2.2:8000/auth";
+  // static final String _baseUrl = "${dotenv.env['BACKEND_SERVER_URL']}/auth";
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static Future<Map<String, dynamic>> registerUser({
@@ -38,30 +41,53 @@ class AuthService {
   static Future<Map<String, dynamic>?> loginUser({
     required LoginUser user,
   }) async {
-    final url = Uri.parse("$_baseUrl/login");
+    try {
+      final UserCredential userCredential = await _auth
+          .signInWithEmailAndPassword(
+            email: user.email,
+            password: user.password,
+          );
 
-    final UserCredential userCredential = await _auth
-        .signInWithEmailAndPassword(email: user.email, password: user.password);
-    final String? idToken = await userCredential.user!.getIdToken(true);
+      final String? idToken = await userCredential.user?.getIdToken();
+      if (idToken == null) {
+        throw Exception("Failed to get authentication token.");
+      }
 
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $idToken'},
-    );
+      final url = Uri.parse("$_baseUrl/login");
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
 
-    if (response.statusCode == 200) {
-      final userData = jsonDecode(response.body);
-      return userData;
-    } else {
-      throw Exception("Login failed: ${response.body}");
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else if (response.statusCode == 401) {
+        throw Exception("Unauthorized: Invalid token.");
+      } else {
+        throw Exception("Server error: ${response.body}");
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception("No user found for this email.");
+      } else if (e.code == 'wrong-password') {
+        throw Exception("Incorrect password.");
+      } else if (e.code == 'user-disabled') {
+        throw Exception("This account has been disabled.");
+      } else {
+        throw Exception("Authentication error: ${e.message}");
+      }
+    } on SocketException {
+      throw Exception("Network error: Please check your internet connection.");
+    } catch (e) {
+      throw Exception("Login failed: $e");
     }
   }
 
-  Future<void> logout() async {
+  static Future<void> logout() async {
     await _auth.signOut();
   }
 
-  User? getCurrentUser() {
+  static User? getCurrentUser() {
     return _auth.currentUser;
   }
 }

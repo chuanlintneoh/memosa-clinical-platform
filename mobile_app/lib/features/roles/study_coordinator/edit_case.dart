@@ -21,7 +21,48 @@ class EditCaseScreen extends StatefulWidget {
 }
 
 class _EditCaseScreenState extends State<EditCaseScreen> {
-  final TextEditingController caseIdController = TextEditingController();
+  bool _isLoading = false;
+  Map<String, dynamic>? _searchResult;
+  String? _errorMessage;
+
+  final TextEditingController _searchController = TextEditingController();
+
+  CaseRetrieveModel? _caseData;
+  final _caseIdController = TextEditingController();
+  final _createdAtController = TextEditingController();
+  final _submittedAtController = TextEditingController();
+  final _createdByController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _idTypeController = TextEditingController();
+  final _idNumController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _genderController = TextEditingController();
+  final _ethnicityController = TextEditingController();
+  final _phoneNumberController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _attendingHospitalController = TextEditingController();
+  String _consentFormType = "NULL";
+  Uint8List _consentFormBytes = Uint8List(0);
+  Habit? _smoking;
+  final _smokingDurationController = TextEditingController();
+  Habit? _betelQuid;
+  final _betelQuidDurationController = TextEditingController();
+  Habit? _alcohol;
+  final _alcoholDurationController = TextEditingController();
+  final _lesionClinicalPresentationController = TextEditingController();
+  final _chiefComplaintController = TextEditingController();
+  final _presentingComplaintHistoryController = TextEditingController();
+  final _medicationHistoryController = TextEditingController();
+  final _medicalHistoryController = TextEditingController();
+  bool? _slsContainingToothpaste;
+  final _slsContainingToothpasteUsedController = TextEditingController();
+  bool? _oralHygieneProductsUsed;
+  final _oralHygieneProductTypeUsedController = TextEditingController();
+  final _additionalCommentsController = TextEditingController();
+  List<Uint8List> _images = List.generate(9, (_) => Uint8List(0));
+  List<Diagnosis> _diagnoses = List.generate(9, (_) => Diagnosis.empty());
+
   final List<String> _imageNamesList = [
     "IMG1: Tongue",
     "IMG2: Below Tongue",
@@ -34,41 +75,205 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     "IMG9: Lower Lip / Gum",
   ];
   int _selectedImageIndex = 0;
-  final List<LesionType> _biopsyLesionTypes = List.filled(9, LesionType.NULL);
-  final List<ClinicalDiagnosis> _biopsyClinicalDiagnoses = List.filled(
+  List<LesionType> _biopsyLesionTypes = List.filled(9, LesionType.NULL);
+  List<ClinicalDiagnosis> _biopsyClinicalDiagnoses = List.filled(
     9,
     ClinicalDiagnosis.NULL,
   );
-  final List<LesionType> _coeLesionTypes = List.filled(9, LesionType.NULL);
-  final List<ClinicalDiagnosis> _coeClinicalDiagnoses = List.filled(
+  List<LesionType> _coeLesionTypes = List.filled(9, LesionType.NULL);
+  List<ClinicalDiagnosis> _coeClinicalDiagnoses = List.filled(
     9,
     ClinicalDiagnosis.NULL,
   );
-  final List<BiopsyAgreeWithCOE> _biopsyAgreeWithCOE = List.filled(
+  List<BiopsyAgreeWithCOE> _biopsyAgreeWithCOE = List.filled(
     9,
     BiopsyAgreeWithCOE.NULL,
   );
-  final List<TextEditingController> _biopsyAgreeWithCOEController =
-      List.generate(
-        9,
-        (index) => TextEditingController(text: BiopsyAgreeWithCOE.NULL.name),
-      );
-  final List<Map<String, dynamic>> _biopsyReports = List.generate(
+  List<TextEditingController> _biopsyAgreeWithCOEController = List.generate(
+    9,
+    (index) => TextEditingController(text: BiopsyAgreeWithCOE.NULL.name),
+  );
+  List<Map<String, dynamic>> _biopsyReports = List.generate(
     9,
     (_) => {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
   ); // report from database
-  final List<File?> _biopsyReportFiles = List.filled(
+  List<File?> _biopsyReportFiles = List.filled(
     9,
     null,
   ); // recently picked file pending to upload to storage upon case changes submission
-  final List<LesionType> _aiLesionTypes = List.filled(9, LesionType.NULL);
+  List<LesionType> _aiLesionTypes = List.filled(9, LesionType.NULL);
 
-  bool _isLoading = false;
-  Map<String, dynamic>? _searchResult;
-  String? _errorMessage;
+  void _resetState() {
+    setState(() {
+      _isLoading = false;
+      _searchResult = null;
+      _errorMessage = null;
+
+      _searchController.clear();
+
+      _caseData = null;
+      _caseIdController.clear();
+      _createdAtController.clear();
+      _submittedAtController.clear();
+      _createdByController.clear();
+      _nameController.clear();
+      _idTypeController.clear();
+      _idNumController.clear();
+      _dobController.clear();
+      _ageController.clear();
+      _genderController.clear();
+      _ethnicityController.clear();
+      _phoneNumberController.clear();
+      _addressController.clear();
+      _attendingHospitalController.clear();
+      _consentFormType = "NULL";
+      _consentFormBytes = Uint8List(0);
+      _smoking = null;
+      _smokingDurationController.clear();
+      _betelQuid = null;
+      _betelQuidDurationController.clear();
+      _alcohol = null;
+      _alcoholDurationController.clear();
+      _lesionClinicalPresentationController.clear();
+      _chiefComplaintController.clear();
+      _presentingComplaintHistoryController.clear();
+      _medicationHistoryController.clear();
+      _medicalHistoryController.clear();
+      _slsContainingToothpaste = null;
+      _slsContainingToothpasteUsedController.clear();
+      _oralHygieneProductsUsed = null;
+      _oralHygieneProductTypeUsedController.clear();
+      _additionalCommentsController.clear();
+      _images = List.generate(9, (_) => Uint8List(0));
+      _diagnoses = List.generate(9, (_) => Diagnosis.empty());
+
+      _selectedImageIndex = 0;
+      _biopsyLesionTypes = List.filled(9, LesionType.NULL);
+      _biopsyClinicalDiagnoses = List.filled(9, ClinicalDiagnosis.NULL);
+      _coeLesionTypes = List.filled(9, LesionType.NULL);
+      _coeClinicalDiagnoses = List.filled(9, ClinicalDiagnosis.NULL);
+      _biopsyAgreeWithCOE = List.filled(9, BiopsyAgreeWithCOE.NULL);
+      _biopsyAgreeWithCOEController = List.generate(
+        9,
+        (index) => TextEditingController(text: BiopsyAgreeWithCOE.NULL.name),
+      );
+      _biopsyReports = List.generate(
+        9,
+        (_) => {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
+      );
+      _biopsyReportFiles = List.filled(9, null);
+      _aiLesionTypes = List.filled(9, LesionType.NULL);
+    });
+  }
+
+  void _populateData() {
+    if (_searchResult == null) return;
+
+    setState(() {
+      final result = _searchResult!;
+      _caseData = result["case_data"];
+      _caseIdController.text = result["case_id"] ?? "";
+      _createdAtController.text = _caseData!.createdAt;
+      _submittedAtController.text = _caseData!.submittedAt;
+      _createdByController.text = _caseData!.createdBy;
+      _nameController.text = _caseData!.name;
+      _idTypeController.text = _caseData!.idtype;
+      _idNumController.text = _caseData!.idnum;
+      _dobController.text = _caseData!.dob;
+      _ageController.text = _caseData!.age;
+      _genderController.text = _caseData!.gender;
+      _ethnicityController.text = _caseData!.ethnicity;
+      _phoneNumberController.text = _caseData!.phonenum;
+      _addressController.text = _caseData!.address;
+      _attendingHospitalController.text = _caseData!.attendingHospital;
+      _consentFormType = _caseData!.consentForm["fileType"] ?? "NULL";
+      _consentFormBytes = _caseData!.consentForm["fileBytes"] ?? Uint8List(0);
+      _smoking = _caseData!.smoking;
+      _smokingDurationController.text = _caseData!.smokingDuration;
+      _betelQuid = _caseData!.betelQuid;
+      _betelQuidDurationController.text = _caseData!.betelQuidDuration;
+      _alcohol = _caseData!.alcohol;
+      _alcoholDurationController.text = _caseData!.alcoholDuration;
+      _lesionClinicalPresentationController.text =
+          _caseData!.lesionClinicalPresentation;
+      _chiefComplaintController.text = _caseData!.chiefComplaint;
+      _presentingComplaintHistoryController.text =
+          _caseData!.presentingComplaintHistory;
+      _medicationHistoryController.text = _caseData!.medicationHistory;
+      _medicalHistoryController.text = _caseData!.medicalHistory;
+      _slsContainingToothpaste = _caseData!.slsContainingToothpaste;
+      _slsContainingToothpasteUsedController.text =
+          _caseData!.slsContainingToothpasteUsed;
+      _oralHygieneProductsUsed = _caseData!.oralHygieneProductsUsed;
+      _oralHygieneProductTypeUsedController.text =
+          _caseData!.oralHygieneProductTypeUsed;
+      _additionalCommentsController.text = _caseData!.additionalComments;
+      _images = _caseData!.images;
+      _diagnoses = _caseData!.diagnoses;
+      for (int i = 0; i < _diagnoses.length && i < 9; i++) {
+        _biopsyLesionTypes[i] = _diagnoses[i].biopsyLesionType;
+        _biopsyClinicalDiagnoses[i] = _diagnoses[i].biopsyClinicalDiagnosis;
+        _coeLesionTypes[i] = _diagnoses[i].coeLesionType;
+        _coeClinicalDiagnoses[i] = _diagnoses[i].coeClinicalDiagnosis;
+        _aiLesionTypes[i] = _diagnoses[i]
+            .aiLesionType; // for creation of CaseEditModel, not submitted for editing to server
+
+        final dynamic incomingReport = _diagnoses[i].biopsyReport;
+        if (incomingReport != null &&
+            incomingReport is Map &&
+            incomingReport.containsKey("url") &&
+            incomingReport.containsKey("iv") &&
+            incomingReport.containsKey("fileType")) {
+          _biopsyReports[i] = {
+            "url": incomingReport["url"] ?? "NULL",
+            "iv": incomingReport["iv"] ?? "NULL",
+            "fileType": incomingReport["fileType"] ?? "NULL",
+          };
+        } else {
+          _biopsyReports[i] = {"url": "NULL", "iv": "NULL", "fileType": "NULL"};
+        }
+
+        _updateBiopsyAgreeWithCOE(i);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _caseIdController.dispose();
+    _createdAtController.dispose();
+    _submittedAtController.dispose();
+    _createdByController.dispose();
+    _nameController.dispose();
+    _idTypeController.dispose();
+    _idNumController.dispose();
+    _dobController.dispose();
+    _ageController.dispose();
+    _genderController.dispose();
+    _ethnicityController.dispose();
+    _phoneNumberController.dispose();
+    _addressController.dispose();
+    _attendingHospitalController.dispose();
+    _smokingDurationController.dispose();
+    _betelQuidDurationController.dispose();
+    _alcoholDurationController.dispose();
+    _lesionClinicalPresentationController.dispose();
+    _chiefComplaintController.dispose();
+    _presentingComplaintHistoryController.dispose();
+    _medicationHistoryController.dispose();
+    _medicalHistoryController.dispose();
+    _slsContainingToothpasteUsedController.dispose();
+    _oralHygieneProductTypeUsedController.dispose();
+    _additionalCommentsController.dispose();
+    for (var controller in _biopsyAgreeWithCOEController) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _searchCase() async {
-    final caseId = caseIdController.text.trim();
+    final caseId = _searchController.text.trim();
     if (caseId.isEmpty) {
       setState(() {
         _errorMessage = "Please enter a case ID";
@@ -96,6 +301,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           _searchResult = result;
           _errorMessage = null;
         });
+        _populateData();
       }
     } catch (e) {
       setState(() {
@@ -108,97 +314,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   }
 
   Widget _buildCaseForm(Map<String, dynamic> result) {
-    final CaseRetrieveModel caseData = result["case_data"];
-    final caseIdController = TextEditingController(
-      text: result["case_id"] ?? "",
-    );
-    final createdAtController = TextEditingController(text: caseData.createdAt);
-    final submittedAtController = TextEditingController(
-      text: caseData.submittedAt,
-    );
-    final createdByController = TextEditingController(text: caseData.createdBy);
-    final nameController = TextEditingController(text: caseData.name);
-    final idTypeController = TextEditingController(text: caseData.idtype);
-    final idNumController = TextEditingController(text: caseData.idnum);
-    final dobController = TextEditingController(text: caseData.dob);
-    final ageController = TextEditingController(text: caseData.age);
-    final genderController = TextEditingController(text: caseData.gender);
-    final ethnicityController = TextEditingController(text: caseData.ethnicity);
-    final phoneNumberController = TextEditingController(
-      text: caseData.phonenum,
-    );
-    final addressController = TextEditingController(text: caseData.address);
-    final attendingHospitalController = TextEditingController(
-      text: caseData.attendingHospital,
-    );
-    final String consentFormType = caseData.consentForm["fileType"] ?? "NULL";
-    final Uint8List consentFormBytes =
-        caseData.consentForm["fileBytes"] ?? Uint8List(0);
-    Habit? smoking = caseData.smoking;
-    final smokingDurationController = TextEditingController(
-      text: caseData.smokingDuration,
-    );
-    Habit? betelQuid = caseData.betelQuid;
-    final betelQuidDurationController = TextEditingController(
-      text: caseData.betelQuidDuration,
-    );
-    Habit? alcohol = caseData.alcohol;
-    final alcoholDurationController = TextEditingController(
-      text: caseData.alcoholDuration,
-    );
-    final lesionClinicialPresentationController = TextEditingController(
-      text: caseData.lesionClinicalPresentation,
-    );
-    final chiefComplaintController = TextEditingController(
-      text: caseData.chiefComplaint,
-    );
-    final presentingComplaintHistoryController = TextEditingController(
-      text: caseData.presentingComplaintHistory,
-    );
-    final medicationHistoryController = TextEditingController(
-      text: caseData.medicationHistory,
-    );
-    final medicalHistoryController = TextEditingController(
-      text: caseData.medicalHistory,
-    );
-    bool? slsContainingToothpaste = caseData.slsContainingToothpaste;
-    final slsContainingToothpasteUsedController = TextEditingController(
-      text: caseData.slsContainingToothpasteUsed,
-    );
-    bool? oralHygieneProductsUsed = caseData.oralHygieneProductsUsed;
-    final oralHygieneProductTypeUsedController = TextEditingController(
-      text: caseData.oralHygieneProductTypeUsed,
-    );
-    final additionalCommentsController = TextEditingController(
-      text: caseData.additionalComments,
-    );
-    final List<Uint8List> images = caseData.images;
-    final List<Diagnosis> diagnoses = caseData.diagnoses;
-    for (int i = 0; i < diagnoses.length && i < 9; i++) {
-      _biopsyLesionTypes[i] = diagnoses[i].biopsyLesionType;
-      _biopsyClinicalDiagnoses[i] = diagnoses[i].biopsyClinicalDiagnosis;
-      _coeLesionTypes[i] = diagnoses[i].coeLesionType;
-      _coeClinicalDiagnoses[i] = diagnoses[i].coeClinicalDiagnosis;
-      _aiLesionTypes[i] = diagnoses[i].aiLesionType;
-
-      final dynamic incomingReport = diagnoses[i].biopsyReport;
-      if (incomingReport != null &&
-          incomingReport is Map &&
-          incomingReport.containsKey("url") &&
-          incomingReport.containsKey("iv") &&
-          incomingReport.containsKey("fileType")) {
-        _biopsyReports[i] = {
-          "url": incomingReport["url"] ?? "NULL",
-          "iv": incomingReport["iv"] ?? "NULL",
-          "fileType": incomingReport["fileType"] ?? "NULL",
-        };
-      } else {
-        _biopsyReports[i] = {"url": "NULL", "iv": "NULL", "fileType": "NULL"};
-      }
-
-      _updateBiopsyAgreeWithCOE(i);
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -207,7 +322,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                caseIdController,
+                _caseIdController,
                 "Case ID",
                 noExpand: true,
               ),
@@ -216,7 +331,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             Expanded(
               flex: 1,
               child: _buildTextField(
-                createdByController,
+                _createdByController,
                 "Created By",
                 noExpand: true,
               ),
@@ -225,13 +340,13 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(createdAtController, "Created At"),
+        _buildTextField(_createdAtController, "Created At"),
         const SizedBox(height: 8),
 
-        _buildTextField(submittedAtController, "Submitted At"),
+        _buildTextField(_submittedAtController, "Submitted At"),
         const SizedBox(height: 20),
 
-        _buildTextField(nameController, "Name"),
+        _buildTextField(_nameController, "Name"),
         const SizedBox(height: 8),
 
         Row(
@@ -239,7 +354,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             Expanded(
               flex: 35,
               child: _buildTextField(
-                idTypeController,
+                _idTypeController,
                 "ID Type",
                 noExpand: true,
               ),
@@ -248,7 +363,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             Expanded(
               flex: 65,
               child: _buildTextField(
-                idNumController,
+                _idNumController,
                 "ID Number",
                 noExpand: true,
               ),
@@ -262,7 +377,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             Expanded(
               flex: 75,
               child: _buildTextField(
-                dobController,
+                _dobController,
                 "Date of Birth",
                 noExpand: true,
               ),
@@ -270,34 +385,34 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             const SizedBox(width: 12),
             Expanded(
               flex: 25,
-              child: _buildTextField(ageController, "Age", noExpand: true),
+              child: _buildTextField(_ageController, "Age", noExpand: true),
             ),
           ],
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(genderController, "Gender"),
+        _buildTextField(_genderController, "Gender"),
         const SizedBox(height: 8),
 
-        _buildTextField(ethnicityController, "Ethnicity"),
+        _buildTextField(_ethnicityController, "Ethnicity"),
         const SizedBox(height: 8),
 
-        _buildTextField(phoneNumberController, "Phone Number"),
+        _buildTextField(_phoneNumberController, "Phone Number"),
         const SizedBox(height: 8),
 
-        _buildTextField(addressController, "Address"),
+        _buildTextField(_addressController, "Address"),
         const SizedBox(height: 8),
 
-        _buildTextField(attendingHospitalController, "Attending Hospital"),
+        _buildTextField(_attendingHospitalController, "Attending Hospital"),
         const SizedBox(height: 8),
 
         Text("Consent Form"),
         ElevatedButton.icon(
-          onPressed: consentFormBytes.isEmpty
+          onPressed: _consentFormBytes.isEmpty
               ? () => ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: const Text("No consent form available")),
                 )
-              : () => _viewFile(consentFormBytes, fileType: consentFormType),
+              : () => _viewFile(_consentFormBytes, fileType: _consentFormType),
           icon: const Icon(Icons.remove_red_eye),
           label: const Text("View"),
         ),
@@ -309,16 +424,16 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
               flex: 1,
               child: _buildDropdown<Habit>(
                 "Smoking",
-                smoking,
+                _smoking,
                 Habit.values,
-                (val) => setState(() => smoking = val),
+                (val) => setState(() => _smoking = val),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 1,
               child: _buildTextField(
-                smokingDurationController,
+                _smokingDurationController,
                 "Duration",
                 readOnly: false,
                 noExpand: true,
@@ -334,16 +449,16 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
               flex: 1,
               child: _buildDropdown<Habit>(
                 "Betel Quid",
-                betelQuid,
+                _betelQuid,
                 Habit.values,
-                (val) => setState(() => betelQuid = val),
+                (val) => setState(() => _betelQuid = val),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 1,
               child: _buildTextField(
-                betelQuidDurationController,
+                _betelQuidDurationController,
                 "Duration",
                 readOnly: false,
                 noExpand: true,
@@ -359,16 +474,16 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
               flex: 1,
               child: _buildDropdown<Habit>(
                 "Alcohol",
-                alcohol,
+                _alcohol,
                 Habit.values,
-                (val) => setState(() => alcohol = val),
+                (val) => setState(() => _alcohol = val),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 1,
               child: _buildTextField(
-                alcoholDurationController,
+                _alcoholDurationController,
                 "Duration",
                 readOnly: false,
                 noExpand: true,
@@ -379,24 +494,24 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         const SizedBox(height: 8),
 
         _buildTextField(
-          lesionClinicialPresentationController,
+          _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(chiefComplaintController, "Chief Complaint"),
+        _buildTextField(_chiefComplaintController, "Chief Complaint"),
         const SizedBox(height: 8),
 
         _buildTextField(
-          presentingComplaintHistoryController,
+          _presentingComplaintHistoryController,
           "Presenting Complaint History",
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(medicationHistoryController, "Medication History"),
+        _buildTextField(_medicationHistoryController, "Medication History"),
         const SizedBox(height: 8),
 
-        _buildTextField(medicalHistoryController, "Medical History"),
+        _buildTextField(_medicalHistoryController, "Medical History"),
         const SizedBox(height: 8),
 
         Text("SLS Containing Toothpaste"),
@@ -406,16 +521,16 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
               flex: 35,
               child: _buildDropdown<bool>(
                 "Used",
-                slsContainingToothpaste,
+                _slsContainingToothpaste,
                 [true, false],
-                (val) => setState(() => slsContainingToothpaste = val),
+                (val) => setState(() => _slsContainingToothpaste = val),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
               child: _buildTextField(
-                slsContainingToothpasteUsedController,
+                _slsContainingToothpasteUsedController,
                 "Type",
                 readOnly: false,
                 noExpand: true,
@@ -432,16 +547,16 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
               flex: 35,
               child: _buildDropdown<bool>(
                 "Used",
-                oralHygieneProductsUsed,
+                _oralHygieneProductsUsed,
                 [true, false],
-                (val) => setState(() => oralHygieneProductsUsed = val),
+                (val) => setState(() => _oralHygieneProductsUsed = val),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
               child: _buildTextField(
-                oralHygieneProductTypeUsedController,
+                _oralHygieneProductTypeUsedController,
                 "Type",
                 readOnly: false,
                 noExpand: true,
@@ -452,7 +567,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         const SizedBox(height: 8),
 
         _buildTextField(
-          additionalCommentsController,
+          _additionalCommentsController,
           "Additional Comments",
           readOnly: false,
           multiline: true,
@@ -477,9 +592,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           height: 200,
           color: Colors.grey[300],
           child: Center(
-            child: images.isNotEmpty
+            child: _images.isNotEmpty
                 ? Image.memory(
-                    images[_selectedImageIndex],
+                    _images[_selectedImageIndex],
                     fit: BoxFit.contain,
                     width: double.infinity,
                     height: double.infinity,
@@ -758,7 +873,10 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       }
     }
 
-    _biopsyAgreeWithCOEController[index].text = _biopsyAgreeWithCOE[index].name;
+    setState(
+      () => _biopsyAgreeWithCOEController[index].text =
+          _biopsyAgreeWithCOE[index].name,
+    );
   }
 
   Future<void> _pickBiopsyReport(int index) async {
@@ -832,29 +950,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     );
   }
 
-  void _resetState() {
-    setState(() {
-      caseIdController.clear();
-      _searchResult = null;
-      _errorMessage = null;
-      _isLoading = false;
-
-      _selectedImageIndex = 0;
-      for (int i = 0; i < 9; i++) {
-        _coeLesionTypes[i] = LesionType.NULL;
-        _coeClinicalDiagnoses[i] = ClinicalDiagnosis.NULL;
-        _biopsyLesionTypes[i] = LesionType.NULL;
-        _biopsyClinicalDiagnoses[i] = ClinicalDiagnosis.NULL;
-        _biopsyAgreeWithCOE[i] = BiopsyAgreeWithCOE.NULL;
-        _biopsyAgreeWithCOEController[i].text = BiopsyAgreeWithCOE.NULL.name;
-        _biopsyReports[i] = {"url": "NULL", "iv": "NULL", "fileType": "NULL"};
-        _biopsyReportFiles[i] = null;
-      }
-    });
-  }
-
   Future<void> _submitChanges() async {
     if (_searchResult == null) return;
+    if (_isLoading) return;
 
     showDialog(
       context: context,
@@ -918,17 +1016,33 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       );
 
       final CaseEditModel editCase = CaseEditModel(
-        alcohol: caseData.alcohol,
-        alcoholDuration: caseData.alcoholDuration,
-        betelQuid: caseData.betelQuid,
-        betelQuidDuration: caseData.betelQuidDuration,
-        smoking: caseData.smoking,
-        smokingDuration: caseData.smokingDuration,
-        oralHygieneProductsUsed: caseData.oralHygieneProductsUsed,
-        oralHygieneProductTypeUsed: caseData.oralHygieneProductTypeUsed,
-        slsContainingToothpaste: caseData.slsContainingToothpaste,
-        slsContainingToothpasteUsed: caseData.slsContainingToothpasteUsed,
-        additionalComments: caseData.additionalComments,
+        alcohol: _alcohol ?? caseData.alcohol,
+        alcoholDuration: _alcoholDurationController.text.isNotEmpty
+            ? _alcoholDurationController.text
+            : caseData.alcoholDuration,
+        betelQuid: _betelQuid ?? caseData.betelQuid,
+        betelQuidDuration: _betelQuidDurationController.text.isNotEmpty
+            ? _betelQuidDurationController.text
+            : caseData.betelQuidDuration,
+        smoking: _smoking ?? caseData.smoking,
+        smokingDuration: _smokingDurationController.text.isNotEmpty
+            ? _smokingDurationController.text
+            : caseData.smokingDuration,
+        oralHygieneProductsUsed:
+            _oralHygieneProductsUsed ?? caseData.oralHygieneProductsUsed,
+        oralHygieneProductTypeUsed:
+            _oralHygieneProductTypeUsedController.text.isNotEmpty
+            ? _oralHygieneProductTypeUsedController.text
+            : caseData.oralHygieneProductTypeUsed,
+        slsContainingToothpaste:
+            _slsContainingToothpaste ?? caseData.slsContainingToothpaste,
+        slsContainingToothpasteUsed:
+            _slsContainingToothpasteUsedController.text.isNotEmpty
+            ? _slsContainingToothpasteUsedController.text
+            : caseData.slsContainingToothpasteUsed,
+        additionalComments: _additionalCommentsController.text.isNotEmpty
+            ? _additionalCommentsController.text
+            : caseData.additionalComments,
         diagnoses: diagnoses,
         aesKey: aesKey,
       );
@@ -991,12 +1105,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   }
 
   @override
-  void dispose() {
-    caseIdController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Edit Case")),
@@ -1008,7 +1116,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: caseIdController,
+                    controller: _searchController,
                     decoration: const InputDecoration(
                       labelText: "Case ID",
                       border: OutlineInputBorder(),

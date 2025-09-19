@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/core/services/auth.dart';
 import 'package:mobile_app/features/roles/screens.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isExpanded = false;
 
   Future<void> _logout() async {
+    await AuthService.logout();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 

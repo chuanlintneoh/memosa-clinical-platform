@@ -12,6 +12,7 @@ import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/features/roles/study_coordinator/image_card.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:uuid/uuid.dart';
 
@@ -48,7 +49,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   final _betelQuidDurationController = TextEditingController();
   Habit? _alcohol;
   final _alcoholDurationController = TextEditingController();
-  final _lesionClinicialPresentationController = TextEditingController();
+  final _lesionClinicalPresentationController = TextEditingController();
   final _chiefComplaintController = TextEditingController();
   final _presentingComplaintHistoryController = TextEditingController();
   final _medicationHistoryController = TextEditingController();
@@ -113,7 +114,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       _betelQuidDurationController.text = draft['betelQuidDuration'] ?? '';
       _alcohol = parseEnum<Habit>(Habit.values, draft['alcohol']);
       _alcoholDurationController.text = draft['alcoholDuration'] ?? '';
-      _lesionClinicialPresentationController.text =
+      _lesionClinicalPresentationController.text =
           draft['lesionClinicalPresentation'] ?? '';
       _chiefComplaintController.text = draft['chiefComplaint'] ?? '';
       _presentingComplaintHistoryController.text =
@@ -170,7 +171,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         'alcohol': _alcohol?.name,
         'alcoholDuration': _alcoholDurationController.text,
         'lesionClinicalPresentation':
-            _lesionClinicialPresentationController.text,
+            _lesionClinicalPresentationController.text,
         'chiefComplaint': _chiefComplaintController.text,
         'presentingComplaintHistory':
             _presentingComplaintHistoryController.text,
@@ -236,6 +237,15 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     );
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final String userId =
+          prefs.getString("userId") ??
+          FirebaseAuth.instance.currentUser?.uid ??
+          "unknown";
+      if (userId == "unknown") {
+        throw Exception("User ID not found. Please log in and try again.");
+      }
+
       DateTime? dob = _dobController.text.isNotEmpty
           ? DateTime.tryParse(_dobController.text)
           : null;
@@ -260,7 +270,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
 
       final publicData = PublicCaseModel(
         createdAt: createdAt,
-        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+        createdBy: userId,
         alcohol: _alcohol!,
         alcoholDuration: _alcoholDurationController.text,
         betelQuid: _betelQuid!,
@@ -286,7 +296,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         gender: _gender!,
         idNum: _idNumController.text,
         idType: _idType!,
-        lesionClinicalPresentation: _lesionClinicialPresentationController.text,
+        lesionClinicalPresentation: _lesionClinicalPresentationController.text,
         medicalHistory: _medicalHistoryController.text,
         medicationHistory: _medicationHistoryController.text,
         name: _nameController.text,
@@ -894,7 +904,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                     const SizedBox(height: 8),
 
                     _buildTextField(
-                      _lesionClinicialPresentationController,
+                      _lesionClinicalPresentationController,
                       "Lesion Clinical Presentation",
                     ),
                     const SizedBox(height: 8),
