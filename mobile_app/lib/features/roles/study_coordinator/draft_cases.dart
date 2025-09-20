@@ -1,8 +1,9 @@
 // List of case drafts saved locally, button for creating new case draft
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_app/features/roles/study_coordinator/create_case.dart';
 import 'package:mobile_app/core/services/draft.dart';
+import 'package:mobile_app/features/roles/study_coordinator/create_case.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DraftCasesScreen extends StatefulWidget {
   const DraftCasesScreen({super.key});
@@ -21,7 +22,17 @@ class _DraftCasesScreenState extends State<DraftCasesScreen> {
   }
 
   Future<void> _loadDrafts() async {
-    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final prefs = await SharedPreferences.getInstance();
+    final String userId =
+        prefs.getString("userId") ??
+        FirebaseAuth.instance.currentUser?.uid ??
+        "unknown";
+    if (userId == "unknown") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User ID not found. Please log in.")),
+      );
+      return;
+    }
     final drafts = await DraftService.loadDrafts(userId);
     setState(() {
       _drafts = drafts;
@@ -29,7 +40,17 @@ class _DraftCasesScreenState extends State<DraftCasesScreen> {
   }
 
   Future<void> _persistDrafts() async {
-    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final prefs = await SharedPreferences.getInstance();
+    final String userId =
+        prefs.getString("userId") ??
+        FirebaseAuth.instance.currentUser?.uid ??
+        "unknown";
+    if (userId == "unknown") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User ID not found. Please log in.")),
+      );
+      return;
+    }
     await DraftService.saveDrafts(userId, _drafts);
   }
 

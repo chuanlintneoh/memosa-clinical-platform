@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/features/roles/clinician/diagnose_case.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UndiagnosedCasesScreen extends StatefulWidget {
   const UndiagnosedCasesScreen({super.key});
@@ -29,19 +30,15 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
         _cases.clear();
       });
 
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Failed to load cases, please try log in again."),
-          ),
-        );
-        setState(() {
-          _isLoading = false;
-          _message = "Failed to load cases, please try log in again.";
-        });
-        return;
+      final prefs = await SharedPreferences.getInstance();
+      final String userId =
+          prefs.getString("userId") ??
+          FirebaseAuth.instance.currentUser?.uid ??
+          "unknown";
+      if (userId == "unknown") {
+        throw Exception("User ID not found. Please log in and try again.");
       }
+
       final results = await DbManagerService.getUndiagnosedCases(
         clinicianID: userId,
       );
@@ -49,12 +46,12 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
       for (Map<String, dynamic> result in results) {
         if (!result.containsKey("error")) {
           _cases.add(result);
-        } else {}
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error loading undiagnosed cases: $e")),
-      );
+      setState(() {
+        _message = "Error loading undiagnosed cases: $e";
+      });
     } finally {
       setState(() => _isLoading = false);
     }

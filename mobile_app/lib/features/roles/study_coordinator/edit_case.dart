@@ -305,7 +305,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = "Error searching case: $e";
+        _errorMessage = e.toString();
         _searchResult = null;
       });
     } finally {

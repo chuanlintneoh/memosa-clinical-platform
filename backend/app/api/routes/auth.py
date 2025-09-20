@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from firebase_admin import auth, firestore
 
+from app.api.auth import verify_token
 from app.core.firebase import db
 from app.models.user import RegisterUser
 
@@ -39,13 +40,8 @@ def register_user(data: RegisterUser):
 
 @auth_router.get("/login")
 def login_user(request: Request):
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    uid, role, email, _ = verify_token(request)
     try:
-        decoded = auth.verify_id_token(token)
-        uid = decoded["uid"]
-        role = decoded.get("role")
-        email = decoded["email"]
-
         user_doc = db.collection("users").document(uid).get()
         if not user_doc.exists:
             raise HTTPException(status_code=404, detail="User document not found")

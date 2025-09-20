@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-// import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_app/core/models/case.dart';
+import 'package:mobile_app/core/services/auth.dart';
+import 'package:mobile_app/core/services/main.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 
@@ -18,10 +19,12 @@ class DbManagerService {
     required PrivateCaseModel privateData,
   }) async {
     try {
-      // final uid = FirebaseAuth.instance.currentUser?.uid;
-      // if (uid == null) throw Exception("User not logged in");
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
 
-      // final createdAt = DateTime.now().toIso8601String().replaceAll(":", "-");
+      final String idToken = await AuthService.authorize();
 
       final newAesKey = CryptoUtils.generateAESKey();
       var encryptedData = CryptoUtils.encryptString(
@@ -65,7 +68,7 @@ class DbManagerService {
 
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': idToken},
         body: body,
       );
 
@@ -89,12 +92,18 @@ class DbManagerService {
     Uint8List aes = Uint8List(0);
 
     try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
       final url = Uri.parse("$_baseUrl/case/get/$caseId");
-      final response = await http.get(url);
+      final response = await http.get(url, headers: {'Authorization': idToken});
 
       if (response.statusCode != 200) {
         return {"error": "Case not found"};
-        // throw Exception("Case not found: ${response.body}");
       }
 
       final rawCase = jsonDecode(response.body);
@@ -144,8 +153,7 @@ class DbManagerService {
         ),
       };
     } catch (e) {
-      return {"error": "Exception during case search: $e"};
-      // throw Exception("Exception during case search: $e");
+      throw Exception("Exception during case search: $e");
     }
   }
 
@@ -155,11 +163,18 @@ class DbManagerService {
   }) async {
     // Study coordinator edit case (eg. add ground truth)
     try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
       final url = Uri.parse("$_baseUrl/case/edit?case_id=$caseId");
       final body = jsonEncode(caseData.toJson());
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': idToken},
         body: body,
       );
 
@@ -179,14 +194,20 @@ class DbManagerService {
   }) async {
     // Clinician retrieves undiagnosed cases
     try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
       final url = Uri.parse("$_baseUrl/cases/undiagnosed/$clinicianID");
-      final response = await http.get(url);
+      final response = await http.get(url, headers: {'Authorization': idToken});
 
       if (response.statusCode != 200) {
         return [
           {"error": "Case not found"},
         ];
-        // throw Exception("Case not found: ${response.body}");
       }
 
       final rawCases = jsonDecode(response.body) as List;
@@ -253,10 +274,7 @@ class DbManagerService {
       }
       return results;
     } catch (e) {
-      return [
-        {"error": "Exception during case retrieval: $e"},
-      ];
-      // throw Exception("Exception during case retrieval: $e");
+      throw Exception("Exception during case retrieval: $e");
     }
   }
 
@@ -266,11 +284,18 @@ class DbManagerService {
   }) async {
     // Clinician diagnoses a case (clinical diagnosis + lesion type + low quality)
     try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
       final url = Uri.parse("$_baseUrl/case/diagnose?case_id=$caseId");
       final body = jsonEncode(diagnoses.toJson());
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'Authorization': idToken},
         body: body,
       );
 
@@ -290,8 +315,15 @@ class DbManagerService {
   }) async {
     // Admin exports bundle
     try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
       final url = Uri.parse("$_baseUrl/bundle/export?include_all=$includeAll");
-      final response = await http.get(url);
+      final response = await http.get(url, headers: {'Authorization': idToken});
 
       return jsonDecode(response.body);
     } catch (e) {

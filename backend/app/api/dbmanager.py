@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from google.cloud import firestore
 from io import BytesIO
+from nanoid import generate
 from pathlib import Path
 from PIL import Image
 # from sendgrid import SendGridAPIClient
@@ -26,6 +27,23 @@ class DbManager:
     def __init__(self, aiqueue):
         self.aiqueue = aiqueue
         self.pending_cases: Dict[str, Dict[str, Any]] = {}  # Data of cases that have already been sent to AIQueue
+
+    def uniquify_id(self, case_id: str, max_trials: int = 5, size: int = 8) -> str:
+        doc_ref = db.collection("cases").document(case_id)
+        trial = 0
+
+        while (doc_ref.get().exists or case_id in self.pending_cases) and trial < max_trials:
+            print(f"[DbManager] Collision detected for {case_id}, generating a new one (trial {trial+1})")
+            case_id = generate(size=size)
+            print(f"[DbManager] Generated new case ID: {case_id}")
+            doc_ref = db.collection("cases").document(case_id)
+            trial += 1
+
+        if trial == max_trials and (doc_ref.get().exists or case_id in self.pending_cases):
+            print(f"[DbManager] Failed to generate unique case ID after {trial} trials")
+            raise ValueError(f"Failed to generate unique case ID after {trial} trials")
+
+        return case_id
 
     def enqueue_ai_job(self, case_id: str, case_data: Dict[str, Any]):
         # 1. download encrypted blob from Firebase Storage

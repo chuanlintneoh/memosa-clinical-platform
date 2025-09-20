@@ -10,11 +10,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/features/roles/study_coordinator/image_card.dart';
+import 'package:nanoid2/nanoid2.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:uuid/uuid.dart';
 
 class CreateCaseScreen extends StatefulWidget {
   final Map<String, dynamic>? draft;
@@ -138,7 +138,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         }
       }
     } else {
-      caseId = const Uuid().v4();
+      caseId = nanoid(length: 8);
       createdAt = DateTime.now();
     }
   }
@@ -192,46 +192,72 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   Future<void> _submitCase() async {
     if (!_formKey.currentState!.validate()) return;
 
+    String dialogMessage = "The case is being submitted at the moment.";
+    bool inProgress = true;
+    String? returnedCaseId;
+    StateSetter? dialogSetState;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("Submitting Case"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              const Text(
-                "The case is being submitted at the moment.\n\n"
-                "At the same time, please remember to save this Case ID for you to search it in the future:",
-              ),
-              const SizedBox(height: 12),
-              Row(
+        return StatefulBuilder(
+          builder: (context, setState) {
+            dialogSetState = setState;
+            return AlertDialog(
+              title: const Text("Submitting Case"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: SelectableText(
-                      caseId,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                  if (inProgress) const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(dialogMessage),
+                  if (returnedCaseId != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SelectableText(
+                            returnedCaseId!,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy),
+                          onPressed: () {
+                            Clipboard.setData(
+                              ClipboardData(text: returnedCaseId!),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Case ID copied")),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: caseId));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Case ID copied")),
-                      );
-                    },
-                  ),
+                  ],
                 ],
               ),
-            ],
-          ),
+              actions: [
+                if (!inProgress)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context, rootNavigator: true).pop();
+                      if (returnedCaseId != null) {
+                        Navigator.pop(context, {
+                          'action': 'submit',
+                          'index': widget.draftIndex,
+                        });
+                      }
+                    },
+                    child: const Text("Close"),
+                  ),
+              ],
+            );
+          },
         );
       },
     );
@@ -311,35 +337,25 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         privateData: privateData,
       );
 
-      if (result == caseId) {
-        Clipboard.setData(ClipboardData(text: caseId));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Case submitted successfully. Case ID copied to clipboard',
-            ),
-          ),
-        );
-        Navigator.of(context, rootNavigator: true).pop();
-        Navigator.pop(context, {
-          'action': 'submit',
-          'index': widget.draftIndex,
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Case submitted but server returned different Case ID: $result',
-            ),
-          ),
-        );
-        Navigator.of(context, rootNavigator: true).pop();
-      }
+      dialogSetState?.call(() {
+        inProgress = false;
+        returnedCaseId = result;
+        if (result == null) {
+          dialogMessage = "Failed to submit case, please try again.";
+          returnedCaseId = null;
+        } else if (result == caseId) {
+          dialogMessage = "Case submitted successfully with the same Case ID:";
+        } else {
+          dialogMessage =
+              "Case submitted successfully with a new unique Case ID generated by server:";
+        }
+      });
     } catch (e) {
-      Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error submitting case: $e')));
+      dialogSetState?.call(() {
+        inProgress = false;
+        returnedCaseId = null;
+        dialogMessage = "Error submitting case: $e";
+      });
     }
   }
 

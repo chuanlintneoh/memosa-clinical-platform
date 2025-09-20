@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+// import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile_app/core/models/user.dart';
+import 'package:mobile_app/core/services/main.dart';
 
 class AuthService {
   static const String _baseUrl = "http://10.0.2.2:8000/auth";
@@ -16,48 +18,63 @@ class AuthService {
     required String password,
     required UserRole role,
   }) async {
-    final url = Uri.parse("$_baseUrl/register");
-    final user = RegisterUser(
-      fullName: fullName,
-      email: email,
-      password: password,
-      role: role,
-    );
-    final body = jsonEncode(user.toJson());
+    try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: body,
-    );
+      final url = Uri.parse("$_baseUrl/register");
+      final user = RegisterUser(
+        fullName: fullName,
+        email: email,
+        password: password,
+        role: role,
+      );
+      final body = jsonEncode(user.toJson());
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Registration failed: ${response.body}");
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(response.body);
+      }
+    } catch (e) {
+      throw Exception("Registration failed: $e");
     }
+  }
+
+  static Future<String> authorize() async {
+    final String? idToken = await _auth.currentUser?.getIdToken();
+    if (idToken == null) {
+      throw Exception("Failed to get authentication token.");
+    }
+    return 'Bearer $idToken';
   }
 
   static Future<Map<String, dynamic>?> loginUser({
     required LoginUser user,
   }) async {
     try {
-      final UserCredential userCredential = await _auth
-          .signInWithEmailAndPassword(
-            email: user.email,
-            password: user.password,
-          );
-
-      final String? idToken = await userCredential.user?.getIdToken();
-      if (idToken == null) {
-        throw Exception("Failed to get authentication token.");
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
       }
 
-      final url = Uri.parse("$_baseUrl/login");
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $idToken'},
+      await _auth.signInWithEmailAndPassword(
+        email: user.email,
+        password: user.password,
       );
+
+      final String idToken = await authorize();
+
+      final url = Uri.parse("$_baseUrl/login");
+      final response = await http.get(url, headers: {'Authorization': idToken});
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
