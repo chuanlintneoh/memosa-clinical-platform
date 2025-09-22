@@ -269,10 +269,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(20.0),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Text(
-                                  "👋 Welcome to MeMoSA\nClinical Platform,\n${widget.name}.",
+                                  "👋 Welcome to MeMoSA Clinical Platform, ${widget.name}.",
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontSize: 20,
@@ -280,22 +280,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                if (!_isExpanded) ...[
-                                  Text(
-                                    "Role: ${widget.role}",
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black54,
-                                    ),
+                                Text(
+                                  "Role: ${widget.role}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black54,
                                   ),
-                                  Text(
-                                    "Email:\n${widget.email}",
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.black54,
-                                    ),
+                                ),
+                                Text(
+                                  "Email: ${widget.email}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.black54,
                                   ),
-                                ],
+                                ),
                               ],
                             ),
                           ),
