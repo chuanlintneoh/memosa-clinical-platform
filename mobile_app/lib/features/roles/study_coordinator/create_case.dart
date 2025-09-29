@@ -196,7 +196,7 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     bool inProgress = true;
     String? returnedCaseId;
     StateSetter? dialogSetState;
-
+    debugPrint("on submitting...");
     showDialog(
       context: context,
       barrierDismissible: false,

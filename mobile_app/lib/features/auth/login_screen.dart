@@ -31,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _pingServer() async {
     final result = await MainService.ping();
+    debugPrint("Ping result: $result");
     setState(() {
       _serverUp = result;
     });
