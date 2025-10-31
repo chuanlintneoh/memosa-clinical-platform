@@ -28,6 +28,7 @@ class CreateCaseScreen extends StatefulWidget {
 
 class _CreateCaseScreenState extends State<CreateCaseScreen> {
   final _formKey = GlobalKey<FormState>();
+  AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
   late final String caseId;
   late final DateTime createdAt;
@@ -190,7 +191,18 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   }
 
   Future<void> _submitCase() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // Enable autovalidation so errors persist when scrolling
+      // Wait for the next frame to avoid ChangeNotifier disposal issues
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _autovalidateMode = AutovalidateMode.always;
+          });
+        }
+      });
+      return;
+    }
 
     String dialogMessage = "The case is being submitted at the moment.";
     bool inProgress = true;
@@ -484,32 +496,6 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
-  Future<void> _pickConsentForm([FormFieldState<File?>? fieldState]) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: [
-        'jpg',
-        'jpeg',
-        'png',
-        // 'gif',
-        'webp',
-        'bmp',
-        'pdf',
-        'doc',
-        'docx',
-      ],
-    );
-
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      setState(() {
-        _consentForm = file;
-      });
-
-      fieldState?.didChange(file);
-    }
-  }
-
   Future<void> _viewConsentForm() async {
     if (_consentForm == null) return;
 
@@ -595,6 +581,149 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
+  Future<void> _showConsentFormSourceActionSheet([
+    FormFieldState<File?>? fieldState,
+  ]) async {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                subtitle: const Text('Take a photo of the consent form'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickConsentFormFromCamera(fieldState);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                subtitle: const Text('Select an image from gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickConsentFormFromGallery(fieldState);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.insert_drive_file),
+                title: const Text('Files'),
+                subtitle: const Text('Browse for PDF, DOC, or image files'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickConsentFormFromFiles(fieldState);
+                },
+              ),
+              if (_consentForm != null)
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text(
+                    'Remove Consent Form',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() => _consentForm = null);
+                    fieldState?.didChange(null);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickConsentFormFromCamera([
+    FormFieldState<File?>? fieldState,
+  ]) async {
+    try {
+      final XFile? pickedImage = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 100,
+      );
+
+      if (pickedImage != null) {
+        final file = File(pickedImage.path);
+        setState(() {
+          _consentForm = file;
+        });
+        fieldState?.didChange(file);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to capture image: $e')));
+    }
+  }
+
+  Future<void> _pickConsentFormFromGallery([
+    FormFieldState<File?>? fieldState,
+  ]) async {
+    try {
+      final XFile? pickedImage = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (pickedImage != null) {
+        final file = File(pickedImage.path);
+        setState(() {
+          _consentForm = file;
+        });
+        fieldState?.didChange(file);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+    }
+  }
+
+  Future<void> _pickConsentFormFromFiles([
+    FormFieldState<File?>? fieldState,
+  ]) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          'jpg',
+          'jpeg',
+          'png',
+          // 'gif',
+          'webp',
+          'bmp',
+          'pdf',
+          'doc',
+          'docx',
+        ],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        setState(() {
+          _consentForm = file;
+        });
+        fieldState?.didChange(file);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to pick file: $e')));
+    }
+  }
+
   Future<void> _showImageSourceActionSheet(int index) async {
     showModalBottomSheet<void>(
       context: context,
@@ -666,10 +795,12 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
+          autovalidateMode: _autovalidateMode,
           child: Column(
             children: [
               Expanded(
                 child: ListView(
+                  padding: const EdgeInsets.only(top: 5.0),
                   children: [
                     _buildTextField(
                       TextEditingController(text: caseId),
@@ -804,12 +935,15 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                               mainAxisAlignment: MainAxisAlignment.start,
                               children: [
                                 ElevatedButton.icon(
-                                  onPressed: () => _pickConsentForm(fieldState),
+                                  onPressed: () =>
+                                      _showConsentFormSourceActionSheet(
+                                        fieldState,
+                                      ),
                                   icon: _consentForm != null
                                       ? const Icon(Icons.edit)
                                       : const Icon(Icons.upload_file),
                                   label: _consentForm != null
-                                      ? Text("Replace")
+                                      ? const Text("Replace")
                                       : const Text("Upload"),
                                 ),
                                 const SizedBox(width: 12),

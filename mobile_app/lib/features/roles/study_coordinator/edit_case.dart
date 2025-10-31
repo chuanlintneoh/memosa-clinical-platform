@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
@@ -102,6 +103,8 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     null,
   ); // recently picked file pending to upload to storage upon case changes submission
   List<LesionType> _aiLesionTypes = List.filled(9, LesionType.NULL);
+
+  final ImagePicker _picker = ImagePicker();
 
   void _resetState() {
     setState(() {
@@ -588,18 +591,62 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        Container(
-          height: 200,
-          color: Colors.grey[300],
-          child: Center(
-            child: _images.isNotEmpty
-                ? Image.memory(
-                    _images[_selectedImageIndex],
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                  )
-                : const Text("No image available"),
+        GestureDetector(
+          onTap: () {
+            if (_images.isNotEmpty) {
+              _showImageZoomDialog(_selectedImageIndex);
+            }
+          },
+          child: Container(
+            height: 200,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              border: Border.all(
+                color: Colors.blue.withValues(alpha: 0.5),
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: _images.isNotEmpty
+                      ? Image.memory(
+                          _images[_selectedImageIndex],
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                        )
+                      : const Text("No image available"),
+                ),
+                if (_images.isNotEmpty)
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.zoom_in, color: Colors.white, size: 16),
+                          SizedBox(width: 4),
+                          Text(
+                            'Tap to zoom',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -677,16 +724,17 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             ElevatedButton.icon(
-              onPressed: () => _pickBiopsyReport(_selectedImageIndex),
+              onPressed: () =>
+                  _showBiopsyReportSourceActionSheet(_selectedImageIndex),
               icon: _biopsyReportFiles[_selectedImageIndex] != null
                   ? const Icon(Icons.edit)
                   : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
                         ? const Icon(Icons.edit)
                         : const Icon(Icons.upload_file)),
               label: _biopsyReportFiles[_selectedImageIndex] != null
-                  ? Text("Replace")
+                  ? const Text("Replace")
                   : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
-                        ? Text("Replace")
+                        ? const Text("Replace")
                         : const Text("Upload")),
             ),
             const SizedBox(width: 12),
@@ -879,26 +927,142 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     );
   }
 
-  Future<void> _pickBiopsyReport(int index) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: [
-        'jpg',
-        'jpeg',
-        'png',
-        // 'gif',
-        'webp',
-        'bmp',
-        'pdf',
-        'doc',
-        'docx',
-      ],
+  Future<void> _showBiopsyReportSourceActionSheet(int index) async {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                subtitle: const Text('Take a photo of the biopsy report'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickBiopsyReportFromCamera(index);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                subtitle: const Text('Select an image from gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickBiopsyReportFromGallery(index);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.insert_drive_file),
+                title: const Text('Files'),
+                subtitle: const Text('Browse for PDF, DOC, or image files'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickBiopsyReportFromFiles(index);
+                },
+              ),
+              if (_biopsyReportFiles[index] != null ||
+                  _biopsyReports[index]['url'] != 'NULL')
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text(
+                    'Remove Biopsy Report',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _biopsyReportFiles[index] = null;
+                      _biopsyReports[index] = {
+                        "url": "NULL",
+                        "iv": "NULL",
+                        "fileType": "NULL",
+                      };
+                    });
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
 
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _biopsyReportFiles[index] = File(result.files.single.path!);
-      });
+  Future<void> _pickBiopsyReportFromCamera(int index) async {
+    try {
+      final XFile? pickedImage = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 100,
+      );
+
+      if (pickedImage != null) {
+        final file = File(pickedImage.path);
+        setState(() {
+          _biopsyReportFiles[index] = file;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to capture image: $e')));
+    }
+  }
+
+  Future<void> _pickBiopsyReportFromGallery(int index) async {
+    try {
+      final XFile? pickedImage = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+
+      if (pickedImage != null) {
+        final file = File(pickedImage.path);
+        setState(() {
+          _biopsyReportFiles[index] = file;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+    }
+  }
+
+  Future<void> _pickBiopsyReportFromFiles(int index) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: [
+          'jpg',
+          'jpeg',
+          'png',
+          // 'gif',
+          'webp',
+          'bmp',
+          'pdf',
+          'doc',
+          'docx',
+        ],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        setState(() {
+          _biopsyReportFiles[index] = file;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to pick file: $e')));
     }
   }
 
@@ -939,6 +1103,89 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         SnackBar(content: Text("Failed to open biopsy report: $e")),
       );
     }
+  }
+
+  void _showImageZoomDialog(int imageIndex) {
+    if (_images.isEmpty || imageIndex >= _images.length) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(10),
+          child: Stack(
+            children: [
+              // Zoomable image
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 5.0,
+                  panEnabled: true,
+                  scaleEnabled: true,
+                  child: Image.memory(_images[imageIndex], fit: BoxFit.contain),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ),
+              // Image title
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _imageNamesList[imageIndex],
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              // Zoom instructions
+              Positioned(
+                bottom: 10,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Pinch to zoom • Double-tap to zoom • Drag to pan',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _cancelEditing() {
@@ -1108,79 +1355,112 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Edit Case")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: "Case ID",
-                      border: OutlineInputBorder(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        enabled: !_isLoading,
+                        decoration: const InputDecoration(
+                          labelText: "Case ID",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _searchCase,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text("Search"),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (_errorMessage != null)
+                  Align(
+                    alignment: Alignment.center,
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red, fontSize: 16),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _searchCase,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text("Search"),
-                ),
+                if (_searchResult != null)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(top: 5.0),
+                      child: _buildCaseForm(_searchResult!),
+                    ),
+                  ),
+                if (_searchResult != null)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _confirmAction(
+                            title: "Cancel Editing",
+                            message: "Are you sure you want to cancel editing?",
+                            onConfirm: _cancelEditing,
+                          );
+                        },
+                        icon: const Icon(Icons.cancel),
+                        label: const Text("Cancel Editing"),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _confirmAction(
+                            title: "Submit Changes",
+                            message:
+                                "Are you sure you want to submit the changes?",
+                            onConfirm: _submitChanges,
+                          );
+                        },
+                        icon: const Icon(Icons.save),
+                        label: const Text("Submit Changes"),
+                      ),
+                    ],
+                  ),
               ],
             ),
-            const SizedBox(height: 20),
-            if (_errorMessage != null)
-              Align(
-                alignment: Alignment.center,
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
+          ),
+          // Loading overlay with modal barrier
+          if (_isLoading)
+            ModalBarrier(
+              dismissible: false,
+              color: Colors.black.withValues(alpha: 0.3),
+            ),
+          if (_isLoading)
+            Center(
+              child: Card(
+                elevation: 8,
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        "Searching for case...",
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            if (_searchResult != null)
-              Expanded(
-                child: SingleChildScrollView(
-                  child: _buildCaseForm(_searchResult!),
-                ),
-              ),
-            if (_searchResult != null)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _confirmAction(
-                        title: "Cancel Editing",
-                        message: "Are you sure you want to cancel editing?",
-                        onConfirm: _cancelEditing,
-                      );
-                    },
-                    icon: const Icon(Icons.cancel),
-                    label: const Text("Cancel Editing"),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _confirmAction(
-                        title: "Submit Changes",
-                        message: "Are you sure you want to submit the changes?",
-                        onConfirm: _submitChanges,
-                      );
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text("Submit Changes"),
-                  ),
-                ],
-              ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }

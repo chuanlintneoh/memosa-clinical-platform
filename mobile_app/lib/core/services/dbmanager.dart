@@ -10,9 +10,9 @@ import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 
 class DbManagerService {
-  // static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
-  static final String _baseUrl =
-      "${dotenv.env['BACKEND_SERVER_URL']}/dbmanager";
+  static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
+  // static final String _baseUrl =
+  //     "${dotenv.env['BACKEND_SERVER_URL']}/dbmanager";
 
   static Future<String?> createCase({
     required String caseId,

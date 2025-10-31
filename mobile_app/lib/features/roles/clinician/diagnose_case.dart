@@ -163,6 +163,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
               child: _buildTextField(
                 _caseIdController,
                 "Case ID",
+                copiable: true,
                 noExpand: true,
               ),
             ),
@@ -172,6 +173,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
               child: _buildTextField(
                 _createdByController,
                 "Created By",
+                copiable: true,
                 noExpand: true,
               ),
             ),
@@ -179,10 +181,10 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(_createdAtController, "Created At"),
+        _buildTextField(_createdAtController, "Created At", copiable: true),
         const SizedBox(height: 8),
 
-        _buildTextField(_submittedAtController, "Submitted At"),
+        _buildTextField(_submittedAtController, "Submitted At", copiable: true),
         const SizedBox(height: 20),
 
         Row(
@@ -285,25 +287,40 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         _buildTextField(
           _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
+          copiable: true,
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(_chiefComplaintController, "Chief Complaint"),
+        _buildTextField(
+          _chiefComplaintController,
+          "Chief Complaint",
+          copiable: true,
+        ),
         const SizedBox(height: 8),
 
         _buildTextField(
           _presentingComplaintHistoryController,
           "Presenting Complaint History",
+          copiable: true,
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(_medicationHistoryController, "Medication History"),
+        _buildTextField(
+          _medicationHistoryController,
+          "Medication History",
+          copiable: true,
+        ),
         const SizedBox(height: 8),
 
-        _buildTextField(_medicalHistoryController, "Medical History"),
+        _buildTextField(
+          _medicalHistoryController,
+          "Medical History",
+          copiable: true,
+        ),
         const SizedBox(height: 8),
 
         Text("SLS Containing Toothpaste"),
+        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(
@@ -328,6 +345,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         const SizedBox(height: 8),
 
         Text("Oral Hygiene Products"),
+        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(
@@ -351,7 +369,11 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        _buildTextField(_additionalCommentsController, "Additional Comments"),
+        _buildTextField(
+          _additionalCommentsController,
+          "Additional Comments",
+          copiable: true,
+        ),
         const SizedBox(height: 20),
 
         Text(
@@ -383,18 +405,62 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         ),
         const SizedBox(height: 8),
 
-        Container(
-          height: 200,
-          color: Colors.grey[300],
-          child: Center(
-            child: _images.isNotEmpty
-                ? Image.memory(
-                    _images[_selectedImageIndex],
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
-                  )
-                : const Text("No image available"),
+        GestureDetector(
+          onTap: () {
+            if (_images.isNotEmpty) {
+              _showImageZoomDialog(_selectedImageIndex);
+            }
+          },
+          child: Container(
+            height: 200,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              border: Border.all(
+                color: Colors.blue.withValues(alpha: 0.5),
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: _images.isNotEmpty
+                      ? Image.memory(
+                          _images[_selectedImageIndex],
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                        )
+                      : const Text("No image available"),
+                ),
+                if (_images.isNotEmpty)
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.zoom_in, color: Colors.white, size: 16),
+                          SizedBox(width: 4),
+                          Text(
+                            'Tap to zoom',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -484,6 +550,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     String label, {
     bool required = false,
     bool readOnly = true,
+    bool copiable = false,
     bool multiline = false,
     bool noExpand = false,
   }) {
@@ -494,7 +561,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
       maxLines: noExpand ? 1 : 4,
       decoration: InputDecoration(
         labelText: label,
-        suffixIcon: readOnly
+        suffixIcon: readOnly && copiable
             ? IconButton(
                 icon: const Icon(Icons.copy),
                 onPressed: () {
@@ -541,6 +608,89 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           return "Select $label";
         }
         return null;
+      },
+    );
+  }
+
+  void _showImageZoomDialog(int imageIndex) {
+    if (_images.isEmpty || imageIndex >= _images.length) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(10),
+          child: Stack(
+            children: [
+              // Zoomable image
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 5.0,
+                  panEnabled: true,
+                  scaleEnabled: true,
+                  child: Image.memory(_images[imageIndex], fit: BoxFit.contain),
+                ),
+              ),
+              // Close button
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ),
+              // Image title
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _imageNamesList[imageIndex],
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              // Zoom instructions
+              Positioned(
+                bottom: 10,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Pinch to zoom • Double-tap to zoom • Drag to pan',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
       },
     );
   }
@@ -704,7 +854,10 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           child: Column(
             children: [
               Expanded(
-                child: SingleChildScrollView(child: _buildDiagnosisForm()),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(top: 5.0),
+                  child: _buildDiagnosisForm(),
+                ),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
