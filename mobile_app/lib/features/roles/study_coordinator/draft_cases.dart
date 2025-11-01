@@ -88,27 +88,178 @@ class _DraftCasesScreenState extends State<DraftCasesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final crossAxisCount = isTablet ? (screenWidth >= 900 ? 3 : 2) : 1;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Draft Cases")),
+      appBar: AppBar(title: const Text("Draft Cases"), elevation: 0),
       body: _drafts.isEmpty
-          ? const Center(child: Text("No draft cases yet."))
-          : ListView.builder(
-              itemCount: _drafts.length,
-              itemBuilder: (context, index) {
-                final draft = _drafts[index];
-                return ListTile(
-                  title: Text(draft['caseId'] ?? 'Unknown Case ID'),
-                  subtitle: Text(
-                    draft['createdAt'] ?? 'Unknown Creation Date Time',
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.drafts_outlined,
+                    size: isTablet ? 120 : 80,
+                    color: colorScheme.primary.withValues(alpha: 0.3),
                   ),
-                  trailing: const Icon(Icons.edit),
-                  onTap: () => _openCreateCase(draft: draft, index: index),
-                );
+                  const SizedBox(height: 24),
+                  Text(
+                    "No draft cases yet",
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Tap the + button to create a new case",
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            )
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                if (isTablet) {
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      childAspectRatio: 2.5,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: _drafts.length,
+                    itemBuilder: (context, index) {
+                      final draft = _drafts[index];
+                      return _buildDraftCard(draft, index, colorScheme);
+                    },
+                  );
+                } else {
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    itemCount: _drafts.length,
+                    itemBuilder: (context, index) {
+                      final draft = _drafts[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildDraftCard(draft, index, colorScheme),
+                      );
+                    },
+                  );
+                }
               },
             ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateCase(),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: Text(isTablet ? "Create New Case" : "New"),
+        elevation: 4,
+      ),
+    );
+  }
+
+  Widget _buildDraftCard(
+    Map<String, dynamic> draft,
+    int index,
+    ColorScheme colorScheme,
+  ) {
+    final caseId = draft['caseId'] ?? 'Unknown Case ID';
+    final createdAt = draft['createdAt'] ?? 'Unknown Creation Date Time';
+    final patientName = draft['name'] ?? '';
+
+    String formattedDate = createdAt;
+    try {
+      final dateTime = DateTime.parse(createdAt);
+      formattedDate =
+          '${dateTime.day}/${dateTime.month}/${dateTime.year} '
+          '${dateTime.hour.toString().padLeft(2, '0')}:'
+          '${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      // Keep original string if parsing fails
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () => _openCreateCase(draft: draft, index: index),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.description_outlined,
+                  color: colorScheme.onPrimaryContainer,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      caseId,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (patientName.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        patientName,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          formattedDate,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
+            ],
+          ),
+        ),
       ),
     );
   }

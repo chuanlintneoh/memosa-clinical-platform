@@ -153,14 +153,110 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     super.dispose();
   }
 
+  Widget _buildSectionCard({
+    required String title,
+    required List<Widget> children,
+    IconData? icon,
+  }) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDiagnosisForm() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth > 600;
+
+        if (isTablet) {
+          return _buildTabletLayout();
+        } else {
+          return _buildMobileLayout();
+        }
+      },
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCaseInfoSection(),
+        _buildPatientInfoSection(),
+        _buildHabitsSection(),
+        _buildClinicalInfoSection(),
+        _buildOralHygieneSection(),
+        _buildDiagnosisSection(),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 1,
+              child: Column(
+                children: [
+                  _buildCaseInfoSection(),
+                  _buildPatientInfoSection(),
+                  _buildHabitsSection(),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildClinicalInfoSection(),
+                  _buildOralHygieneSection(),
+                ],
+              ),
+            ),
+          ],
+        ),
+        _buildDiagnosisSection(),
+      ],
+    );
+  }
+
+  Widget _buildCaseInfoSection() {
+    return _buildSectionCard(
+      title: 'Case Information',
+      icon: Icons.info_outline,
+      children: [
+        Row(
+          children: [
+            Expanded(
               child: _buildTextField(
                 _caseIdController,
                 "Case ID",
@@ -170,7 +266,6 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _createdByController,
                 "Created By",
@@ -180,23 +275,26 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_createdAtController, "Created At", copiable: true),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_submittedAtController, "Submitted At", copiable: true),
-        const SizedBox(height: 20),
+      ],
+    );
+  }
 
+  Widget _buildPatientInfoSection() {
+    return _buildSectionCard(
+      title: 'Patient Demographics',
+      icon: Icons.person_outline,
+      children: [
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildTextField(_ageController, "Age", noExpand: true),
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _genderController,
                 "Gender",
@@ -205,7 +303,6 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _ethnicityController,
                 "Ethnicity",
@@ -214,12 +311,18 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
+  Widget _buildHabitsSection() {
+    return _buildSectionCard(
+      title: 'Habits & Lifestyle',
+      icon: Icons.smoking_rooms_outlined,
+      children: [
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _smokingController,
                 "Smoking",
@@ -228,7 +331,6 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _smokingDurationController,
                 "Duration",
@@ -237,12 +339,10 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _betelQuidController,
                 "Betel Quid",
@@ -251,7 +351,6 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _betelQuidDurationController,
                 "Duration",
@@ -260,12 +359,10 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _alcoholController,
                 "Alcohol",
@@ -274,7 +371,6 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _alcoholDurationController,
                 "Duration",
@@ -283,52 +379,60 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
+  Widget _buildClinicalInfoSection() {
+    return _buildSectionCard(
+      title: 'Clinical Information',
+      icon: Icons.medical_information_outlined,
+      children: [
         _buildTextField(
           _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
           copiable: true,
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _chiefComplaintController,
           "Chief Complaint",
           copiable: true,
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _presentingComplaintHistoryController,
           "Presenting Complaint History",
           copiable: true,
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _medicationHistoryController,
           "Medication History",
           copiable: true,
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _medicalHistoryController,
           "Medical History",
           copiable: true,
         ),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
-        Text("SLS Containing Toothpaste"),
-        const SizedBox(height: 4),
+  Widget _buildOralHygieneSection() {
+    return _buildSectionCard(
+      title: 'Oral Hygiene',
+      icon: Icons.clean_hands_outlined,
+      children: [
         Row(
           children: [
             Expanded(
               flex: 35,
               child: _buildTextField(
                 _slsContainingToothpasteController,
-                "Used",
+                "SLS Toothpaste",
                 noExpand: true,
               ),
             ),
@@ -343,17 +447,14 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
-        Text("Oral Hygiene Products"),
-        const SizedBox(height: 4),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               flex: 35,
               child: _buildTextField(
                 _oralHygieneProductsUsedController,
-                "Used",
+                "Other Products",
                 noExpand: true,
               ),
             ),
@@ -368,22 +469,48 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _additionalCommentsController,
           "Additional Comments",
           copiable: true,
         ),
-        const SizedBox(height: 20),
+      ],
+    );
+  }
 
-        Text(
-          "Oral Cavity Images of 9 Areas",
-          style: Theme.of(context).textTheme.titleMedium,
+  Widget _buildDiagnosisSection() {
+    return _buildSectionCard(
+      title: 'Provide Diagnosis',
+      icon: Icons.fact_check_outlined,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange, width: 1),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Please provide diagnosis for all 9 images. Incomplete images are marked with *',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
         ),
-        DropdownButton<int>(
+        const SizedBox(height: 16),
+        DropdownButtonFormField<int>(
           value: _selectedImageIndex,
-          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: "Select Image to Diagnose",
+            border: OutlineInputBorder(),
+          ),
           items: List.generate(_imageNamesList.length, (i) {
             final incomplete =
                 _lesionTypes[i] == LesionType.NULL ||
@@ -391,12 +518,27 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
 
             return DropdownMenuItem(
               value: i,
-              child: Text(
-                incomplete ? '${_imageNamesList[i]} *' : _imageNamesList[i],
-                style: TextStyle(
-                  color: incomplete ? Colors.red : null,
-                  fontWeight: incomplete ? FontWeight.bold : FontWeight.normal,
-                ),
+              child: Row(
+                children: [
+                  if (incomplete)
+                    const Icon(Icons.warning_amber, color: Colors.red, size: 18)
+                  else
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 18,
+                    ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _imageNamesList[i],
+                    style: TextStyle(
+                      color: incomplete ? Colors.red : null,
+                      fontWeight: incomplete
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ],
               ),
             );
           }),
@@ -404,8 +546,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             if (val != null) setState(() => _selectedImageIndex = val);
           },
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         GestureDetector(
           onTap: () {
             if (_images.isNotEmpty) {
@@ -413,7 +554,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
             }
           },
           child: Container(
-            height: 200,
+            height: 250,
             decoration: BoxDecoration(
               color: Colors.grey[300],
               border: Border.all(
@@ -465,38 +606,34 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           ),
         ),
         const SizedBox(height: 20),
-
         _buildDropdown(
-          "Diagnosis - Lesion Type",
+          "Lesion Type",
           _lesionTypes[_selectedImageIndex],
           LesionType.values,
           (val) => setState(() => _lesionTypes[_selectedImageIndex] = val!),
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildDropdown(
-          "Diagnosis - Clinical Diagnosis",
+          "Clinical Diagnosis",
           _clinicalDiagnoses[_selectedImageIndex],
           ClinicalDiagnosis.values,
           (val) =>
               setState(() => _clinicalDiagnoses[_selectedImageIndex] = val!),
         ),
-        const SizedBox(height: 8),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Low Quality Image?"),
-            Switch(
-              value: _lowQualityFlags[_selectedImageIndex],
-              onChanged: (val) {
-                setState(() => _lowQualityFlags[_selectedImageIndex] = val);
-              },
-            ),
-          ],
+        const SizedBox(height: 16),
+        Card(
+          color: _lowQualityFlags[_selectedImageIndex]
+              ? Colors.orange.withValues(alpha: 0.1)
+              : Colors.grey.withValues(alpha: 0.05),
+          child: SwitchListTile(
+            title: const Text("Low Quality Image?"),
+            subtitle: const Text("Mark if image quality is poor"),
+            value: _lowQualityFlags[_selectedImageIndex],
+            onChanged: (val) {
+              setState(() => _lowQualityFlags[_selectedImageIndex] = val);
+            },
+          ),
         ),
-        const SizedBox(height: 8),
-
         FormField<void>(
           initialValue: null,
           validator: (_) {
@@ -530,12 +667,29 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           builder: (field) {
             return field.hasError
                 ? Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      field.errorText!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontSize: 13,
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              field.errorText!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   )
@@ -857,50 +1011,126 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Diagnose Case")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          autovalidateMode: _autovalidateMode,
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(top: 5.0),
-                  child: _buildDiagnosisForm(),
+      appBar: AppBar(title: const Text("Diagnose Case"), centerTitle: true),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 800;
+          final maxWidth = isWide ? 1200.0 : double.infinity;
+
+          return Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Form(
+                key: _formKey,
+                autovalidateMode: _autovalidateMode,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                        child: _buildDiagnosisForm(),
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, -2),
+                          ),
+                        ],
+                      ),
+                      child: isWide
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    _confirmAction(
+                                      title: "Cancel Diagnosis",
+                                      message:
+                                          "Are you sure you want to cancel diagnosis? All progress will be lost.",
+                                      onConfirm: _cancelDiagnosis,
+                                    );
+                                  },
+                                  icon: const Icon(Icons.cancel),
+                                  label: const Text("Cancel Diagnosis"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.grey,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    _confirmAction(
+                                      title: "Submit Diagnosis",
+                                      message:
+                                          "Are you sure you want to submit diagnosis?",
+                                      onConfirm: _submitDiagnosis,
+                                    );
+                                  },
+                                  icon: const Icon(Icons.check),
+                                  label: const Text("Submit Diagnosis"),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      _confirmAction(
+                                        title: "Cancel Diagnosis",
+                                        message:
+                                            "Are you sure you want to cancel diagnosis? All progress will be lost.",
+                                        onConfirm: _cancelDiagnosis,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.cancel),
+                                    label: const Text("Cancel"),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      _confirmAction(
+                                        title: "Submit Diagnosis",
+                                        message:
+                                            "Are you sure you want to submit diagnosis?",
+                                        onConfirm: _submitDiagnosis,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.check),
+                                    label: const Text("Submit"),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _confirmAction(
-                        title: "Cancel Diagnosis",
-                        message: "Are you sure you want to cancel diagnosis?",
-                        onConfirm: _cancelDiagnosis,
-                      );
-                    },
-                    icon: const Icon(Icons.cancel),
-                    label: const Text("Cancel Diagnosis"),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _confirmAction(
-                        title: "Submit Diagnosis",
-                        message: "Are you sure you want to submit diagnosis?",
-                        onConfirm: _submitDiagnosis,
-                      );
-                    },
-                    icon: const Icon(Icons.check),
-                    label: const Text("Submit Diagnosis"),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

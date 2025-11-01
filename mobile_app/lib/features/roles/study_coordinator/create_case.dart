@@ -787,538 +787,747 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
+  Widget _buildSectionCard({
+    required String title,
+    required List<Widget> children,
+    IconData? icon,
+  }) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveForm() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth > 600;
+        final maxWidth = isTablet ? 1200.0 : double.infinity;
+
+        if (isTablet) {
+          return Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: _buildTabletLayout(),
+            ),
+          );
+        } else {
+          return _buildMobileLayout();
+        }
+      },
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _buildBasicInfoSection(),
+        _buildPersonalDetailsSection(),
+        _buildConsentFormSection(),
+        _buildHabitsSection(),
+        _buildClinicalInfoSection(),
+        _buildOralHygieneSection(),
+        _buildImagesSection(),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  _buildBasicInfoSection(),
+                  _buildPersonalDetailsSection(),
+                  _buildConsentFormSection(),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildHabitsSection(),
+                  _buildClinicalInfoSection(),
+                  _buildOralHygieneSection(),
+                ],
+              ),
+            ),
+          ],
+        ),
+        _buildImagesSection(),
+      ],
+    );
+  }
+
+  Widget _buildBasicInfoSection() {
+    return _buildSectionCard(
+      title: 'Case Information',
+      icon: Icons.info_outline,
+      children: [
+        _buildTextField(
+          TextEditingController(text: caseId),
+          "Case ID",
+          readOnly: true,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          TextEditingController(text: createdAt.toString()),
+          "Created At",
+          readOnly: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPersonalDetailsSection() {
+    return _buildSectionCard(
+      title: 'Personal Details',
+      icon: Icons.person_outline,
+      children: [
+        _buildTextField(
+          _nameController,
+          "Full Name",
+          allowedChars: RegExp(r"[A-Za-zÀ-ÖØ-öø-ÿ'\- ]"),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              flex: 35,
+              child: _buildDropdown<IdType>(
+                "ID Type",
+                _idType,
+                IdType.values,
+                (val) => setState(() => _idType = val),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 65,
+              child: _buildTextField(
+                _idNumController,
+                "ID Number",
+                allowedChars: RegExp(r"[A-Za-z0-9]"),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              flex: 65,
+              child: TextFormField(
+                controller: _dobController,
+                decoration: const InputDecoration(
+                  labelText: "Date of Birth",
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+                readOnly: true,
+                onTap: _pickDateOfBirth,
+                validator: (value) => value == null || value.isEmpty
+                    ? "Select Date of Birth"
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 35,
+              child: TextFormField(
+                controller: _ageController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: "Age",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildDropdown<Gender>(
+          "Gender",
+          _gender,
+          Gender.values,
+          (val) => setState(() => _gender = val),
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(_ethnicityController, "Ethnicity"),
+        const SizedBox(height: 16),
+        _buildTextField(
+          _phoneNumberController,
+          "Phone Number",
+          allowedChars: RegExp(r"[0-9]"),
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(_addressController, "Address"),
+        const SizedBox(height: 16),
+        _buildTextField(_attendingHospitalController, "Attending Hospital"),
+      ],
+    );
+  }
+
+  Widget _buildConsentFormSection() {
+    return _buildSectionCard(
+      title: 'Consent Form',
+      icon: Icons.description_outlined,
+      children: [
+        FormField<File?>(
+          initialValue: _consentForm,
+          validator: (file) {
+            if (file == null) return "Upload consent form";
+
+            final maxMb = 5;
+            try {
+              final size = file.lengthSync();
+              if (size > maxMb * 1024 * 1024) {
+                return "File too large (max $maxMb MB)";
+              }
+            } catch (e) {
+              return "Cannot access file";
+            }
+            return null;
+          },
+          builder: (fieldState) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _consentForm != null
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.grey.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _consentForm != null ? Colors.green : Colors.grey,
+                      width: 2,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        _consentForm != null
+                            ? Icons.check_circle_outline
+                            : Icons.upload_file_outlined,
+                        size: 48,
+                        color: _consentForm != null
+                            ? Colors.green
+                            : Colors.grey,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _consentForm != null
+                            ? "Consent form uploaded"
+                            : "No consent form uploaded",
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            _showConsentFormSourceActionSheet(fieldState),
+                        icon: _consentForm != null
+                            ? const Icon(Icons.edit)
+                            : const Icon(Icons.upload_file),
+                        label: Text(
+                          _consentForm != null ? "Replace" : "Upload",
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _consentForm == null
+                            ? () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("No consent form available"),
+                                ),
+                              )
+                            : _viewConsentForm,
+                        icon: const Icon(Icons.remove_red_eye),
+                        label: const Text("View"),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (fieldState.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      fieldState.errorText ?? '',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12.0,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHabitsSection() {
+    return _buildSectionCard(
+      title: 'Habits & Lifestyle',
+      icon: Icons.smoking_rooms_outlined,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<Habit>(
+                "Smoking",
+                _smoking,
+                Habit.values,
+                (val) => setState(() => _smoking = val),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTextField(_smokingDurationController, "Duration"),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<Habit>(
+                "Betel Quid",
+                _betelQuid,
+                Habit.values,
+                (val) => setState(() => _betelQuid = val),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTextField(_betelQuidDurationController, "Duration"),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildDropdown<Habit>(
+                "Alcohol",
+                _alcohol,
+                Habit.values,
+                (val) => setState(() => _alcohol = val),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildTextField(_alcoholDurationController, "Duration"),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClinicalInfoSection() {
+    return _buildSectionCard(
+      title: 'Clinical Information',
+      icon: Icons.medical_information_outlined,
+      children: [
+        _buildTextField(
+          _lesionClinicalPresentationController,
+          "Lesion Clinical Presentation",
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(_chiefComplaintController, "Chief Complaint"),
+        const SizedBox(height: 16),
+        _buildTextField(
+          _presentingComplaintHistoryController,
+          "Presenting Complaint History",
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(_medicationHistoryController, "Medication History"),
+        const SizedBox(height: 16),
+        _buildTextField(_medicalHistoryController, "Medical History"),
+      ],
+    );
+  }
+
+  Widget _buildOralHygieneSection() {
+    return _buildSectionCard(
+      title: 'Oral Hygiene',
+      icon: Icons.clean_hands_outlined,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 35,
+              child: _buildDropdown<bool>(
+                "SLS Toothpaste",
+                _slsContainingToothpaste,
+                [true, false],
+                (val) => setState(() => _slsContainingToothpaste = val),
+                required: false,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 65,
+              child: _buildTextField(
+                _slsContainingToothpasteUsedController,
+                "Type",
+                required: false,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              flex: 35,
+              child: _buildDropdown<bool>(
+                "Other Products",
+                _oralHygieneProductsUsed,
+                [true, false],
+                (val) => setState(() => _oralHygieneProductsUsed = val),
+                required: false,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 65,
+              child: _buildTextField(
+                _oralHygieneProductTypeUsedController,
+                "Type",
+                required: false,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          _additionalCommentsController,
+          "Additional Comments",
+          required: false,
+          multiline: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagesSection() {
+    return _buildSectionCard(
+      title: 'Oral Cavity Images',
+      icon: Icons.photo_camera_outlined,
+      children: [
+        FormField<List<XFile?>>(
+          initialValue: _images,
+          validator: (value) {
+            if (value == null || value.any((img) => img == null)) {
+              return "Please upload all 9 oral cavity images";
+            }
+            return null;
+          },
+          builder: (field) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.blue),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Upload images for each designated region of the mouth.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth > 800;
+                    return GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 16.0,
+                      crossAxisSpacing: 16.0,
+                      crossAxisCount: isWide ? 3 : 2,
+                      children: [
+                        ImageCard(
+                          title: 'IMG1:\nTongue',
+                          imageFile: _images[0],
+                          onTap: () => _showImageSourceActionSheet(0),
+                        ),
+                        ImageCard(
+                          title: 'IMG2:\nBelow Tongue',
+                          imageFile: _images[1],
+                          onTap: () => _showImageSourceActionSheet(1),
+                        ),
+                        ImageCard(
+                          title: 'IMG3:\nLeft of Tongue',
+                          imageFile: _images[2],
+                          onTap: () => _showImageSourceActionSheet(2),
+                        ),
+                        ImageCard(
+                          title: 'IMG4:\nRight of Tongue',
+                          imageFile: _images[3],
+                          onTap: () => _showImageSourceActionSheet(3),
+                        ),
+                        ImageCard(
+                          title: 'IMG5:\nPalate',
+                          imageFile: _images[4],
+                          onTap: () => _showImageSourceActionSheet(4),
+                        ),
+                        ImageCard(
+                          title: 'IMG6:\nLeft Cheek',
+                          imageFile: _images[5],
+                          onTap: () => _showImageSourceActionSheet(5),
+                        ),
+                        ImageCard(
+                          title: 'IMG7:\nRight Cheek',
+                          imageFile: _images[6],
+                          onTap: () => _showImageSourceActionSheet(6),
+                        ),
+                        ImageCard(
+                          title: 'IMG8:\nUpper Lip / Gum',
+                          imageFile: _images[7],
+                          onTap: () => _showImageSourceActionSheet(7),
+                        ),
+                        ImageCard(
+                          title: 'IMG9:\nLower Lip / Gum',
+                          imageFile: _images[8],
+                          onTap: () => _showImageSourceActionSheet(8),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                if (field.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Text(
+                      field.errorText!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Create Case")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          autovalidateMode: _autovalidateMode,
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.only(top: 5.0),
-                  children: [
-                    _buildTextField(
-                      TextEditingController(text: caseId),
-                      "Case ID",
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      TextEditingController(text: createdAt.toString()),
-                      "Created At",
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _nameController,
-                      "Full Name",
-                      allowedChars: RegExp(r"[A-Za-zÀ-ÖØ-öø-ÿ'\- ]"),
-                    ),
-                    const SizedBox(height: 8),
-
-                    Text("ID"),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 35,
-                          child: _buildDropdown<IdType>(
-                            "Type",
-                            _idType,
-                            IdType.values,
-                            (val) => setState(() => _idType = val),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 65,
-                          child: _buildTextField(
-                            _idNumController,
-                            "Number",
-                            allowedChars: RegExp(r"[A-Za-z0-9]"),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 65,
-                          child: TextFormField(
-                            controller: _dobController,
-                            decoration: const InputDecoration(
-                              labelText: "Date of Birth",
-                            ),
-                            readOnly: true,
-                            onTap: _pickDateOfBirth,
-                            validator: (value) => value == null || value.isEmpty
-                                ? "Select Date of Birth"
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 35,
-                          child: TextFormField(
-                            controller: _ageController,
-                            readOnly: true,
-                            decoration: InputDecoration(
-                              labelText: "Age",
-                              // filled: true,
-                              // fillColor: Colors.grey,
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildDropdown<Gender>(
-                      "Gender",
-                      _gender,
-                      Gender.values,
-                      (val) => setState(() => _gender = val),
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(_ethnicityController, "Ethnicity"),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _phoneNumberController,
-                      "Phone Number",
-                      allowedChars: RegExp(r"[0-9]"),
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(_addressController, "Address"),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _attendingHospitalController,
-                      "Attending Hospital",
-                    ),
-                    const SizedBox(height: 8),
-
-                    Text("Consent Form"),
-                    FormField<File?>(
-                      initialValue: _consentForm,
-                      validator: (file) {
-                        if (file == null) return "Upload consent form";
-
-                        final maxMb = 5;
-                        try {
-                          final size = file.lengthSync();
-                          if (size > maxMb * 1024 * 1024) {
-                            return "File too large (max $maxMb MB)";
-                          }
-                        } catch (e) {
-                          return "Cannot access file";
-                        }
-                        return null;
-                      },
-
-                      builder: (fieldState) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () =>
-                                      _showConsentFormSourceActionSheet(
-                                        fieldState,
-                                      ),
-                                  icon: _consentForm != null
-                                      ? const Icon(Icons.edit)
-                                      : const Icon(Icons.upload_file),
-                                  label: _consentForm != null
-                                      ? const Text("Replace")
-                                      : const Text("Upload"),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton.icon(
-                                  onPressed: _consentForm == null
-                                      ? () => ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  "No consent form available",
-                                                ),
-                                              ),
-                                            )
-                                      : _viewConsentForm,
-                                  icon: const Icon(Icons.remove_red_eye),
-                                  label: const Text("View"),
-                                ),
-                              ],
-                            ),
-
-                            if (fieldState.hasError)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 8.0,
-                                  left: 4.0,
-                                ),
-                                child: Text(
-                                  fieldState.errorText ?? '',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                    fontSize: 12.0,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: _buildDropdown<Habit>(
-                            "Smoking",
-                            _smoking,
-                            Habit.values,
-                            (val) => setState(() => _smoking = val),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: _buildTextField(
-                            _smokingDurationController,
-                            "Duration",
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: _buildDropdown<Habit>(
-                            "Betel Quid",
-                            _betelQuid,
-                            Habit.values,
-                            (val) => setState(() => _betelQuid = val),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: _buildTextField(
-                            _betelQuidDurationController,
-                            "Duration",
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: _buildDropdown<Habit>(
-                            "Alcohol",
-                            _alcohol,
-                            Habit.values,
-                            (val) => setState(() => _alcohol = val),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: _buildTextField(
-                            _alcoholDurationController,
-                            "Duration",
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _lesionClinicalPresentationController,
-                      "Lesion Clinical Presentation",
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _chiefComplaintController,
-                      "Chief Complaint",
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _presentingComplaintHistoryController,
-                      "Presenting Complaint History",
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _medicationHistoryController,
-                      "Medication History",
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _medicalHistoryController,
-                      "Medical History",
-                    ),
-                    const SizedBox(height: 8),
-
-                    Text("SLS Containing Toothpaste"),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 35,
-                          child: _buildDropdown<bool>(
-                            "Used",
-                            _slsContainingToothpaste,
-                            [true, false],
-                            (val) =>
-                                setState(() => _slsContainingToothpaste = val),
-                            required: false,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 65,
-                          child: _buildTextField(
-                            _slsContainingToothpasteUsedController,
-                            "Type",
-                            required: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    Text("Oral Hygiene Products"),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 35,
-                          child: _buildDropdown<bool>(
-                            "Used",
-                            _oralHygieneProductsUsed,
-                            [true, false],
-                            (val) =>
-                                setState(() => _oralHygieneProductsUsed = val),
-                            required: false,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 65,
-                          child: _buildTextField(
-                            _oralHygieneProductTypeUsedController,
-                            "Type",
-                            required: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    _buildTextField(
-                      _additionalCommentsController,
-                      "Additional Comments",
-                      required: false,
-                      multiline: true,
-                    ),
-                    const SizedBox(height: 8),
-
-                    FormField<List<XFile?>>(
-                      initialValue: _images,
-                      validator: (value) {
-                        if (value == null || value.any((img) => img == null)) {
-                          return "Please upload all 9 oral cavity images";
-                        }
-                        return null;
-                      },
-                      builder: (field) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Align(
-                              alignment: Alignment.topCenter,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.black26),
-                                  borderRadius: BorderRadius.circular(12.0),
-                                ),
-                                margin: const EdgeInsets.all(8.0),
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Oral Cavity Images of 9 Areas',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                    const SizedBox(height: 16.0),
-                                    Text(
-                                      'Upload images for each designated region of the mouth.',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                    const SizedBox(height: 16.0),
-                                    GridView.count(
-                                      shrinkWrap: true,
-                                      physics:
-                                          const NeverScrollableScrollPhysics(),
-                                      mainAxisSpacing: 16.0,
-                                      crossAxisSpacing: 16.0,
-                                      crossAxisCount: 2,
-                                      children: [
-                                        ImageCard(
-                                          title: 'IMG1:\nTongue',
-                                          imageFile: _images[0],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(0),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG2:\nBelow Tongue',
-                                          imageFile: _images[1],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(1),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG3:\nLeft of Tongue',
-                                          imageFile: _images[2],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(2),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG4:\nRight of Tongue',
-                                          imageFile: _images[3],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(3),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG5:\nPalate',
-                                          imageFile: _images[4],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(4),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG6:\nLeft Cheek',
-                                          imageFile: _images[5],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(5),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG7:\nRight Cheek',
-                                          imageFile: _images[6],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(6),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG8:\nUpper Lip / Gum',
-                                          imageFile: _images[7],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(7),
-                                        ),
-                                        ImageCard(
-                                          title: 'IMG9:\nLower Lip / Gum',
-                                          imageFile: _images[8],
-                                          onTap: () =>
-                                              _showImageSourceActionSheet(8),
-                                        ),
-                                      ],
-                                    ),
-                                    if (field.hasError)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          top: 8.0,
-                                        ),
-                                        child: Text(
-                                          field.errorText!,
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.error,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (widget.draftIndex != null)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _confirmAction(
-                          title: "Delete Draft",
-                          message:
-                              "Are you sure you want to delete this draft?",
-                          onConfirm: _deleteDraft,
-                        );
-                      },
-                      icon: const Icon(Icons.delete),
-                      label: const Text("Delete"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                    ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _confirmAction(
-                        title: "Save Draft",
-                        message:
-                            "Are you sure you want to save this draft? You can continue editing it later.",
-                        onConfirm: _saveDraft,
-                      );
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text("Save Draft"),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      _confirmAction(
-                        title: "Submit Case",
-                        message: "Are you sure you want to submit this case?",
-                        onConfirm: _submitCase,
-                      );
-                    },
-                    icon: const Icon(Icons.send),
-                    label: const Text("Submit"),
+      appBar: AppBar(title: const Text("Create Case"), centerTitle: true),
+      body: Form(
+        key: _formKey,
+        autovalidateMode: _autovalidateMode,
+        child: Column(
+          children: [
+            Expanded(child: _buildResponsiveForm()),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-            ],
-          ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 600;
+
+                  if (isWide) {
+                    return Center(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 1200),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            if (widget.draftIndex != null) ...[
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  _confirmAction(
+                                    title: "Delete Draft",
+                                    message:
+                                        "Are you sure you want to delete this draft?",
+                                    onConfirm: _deleteDraft,
+                                  );
+                                },
+                                icon: const Icon(Icons.delete),
+                                label: const Text("Delete"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 16,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                _confirmAction(
+                                  title: "Save Draft",
+                                  message:
+                                      "Are you sure you want to save this draft? You can continue editing it later.",
+                                  onConfirm: _saveDraft,
+                                );
+                              },
+                              icon: const Icon(Icons.save),
+                              label: const Text("Save Draft"),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 16,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                _confirmAction(
+                                  title: "Submit Case",
+                                  message:
+                                      "Are you sure you want to submit this case?",
+                                  onConfirm: _submitCase,
+                                );
+                              },
+                              icon: const Icon(Icons.send),
+                              label: const Text("Submit"),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (widget.draftIndex != null)
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                _confirmAction(
+                                  title: "Delete Draft",
+                                  message:
+                                      "Are you sure you want to delete this draft?",
+                                  onConfirm: _deleteDraft,
+                                );
+                              },
+                              icon: const Icon(Icons.delete),
+                              label: const Text("Delete"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                            ),
+                          ),
+                        if (widget.draftIndex != null) const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _confirmAction(
+                                title: "Save Draft",
+                                message:
+                                    "Are you sure you want to save this draft? You can continue editing it later.",
+                                onConfirm: _saveDraft,
+                              );
+                            },
+                            icon: const Icon(Icons.save),
+                            label: const Text("Save"),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              _confirmAction(
+                                title: "Submit Case",
+                                message:
+                                    "Are you sure you want to submit this case?",
+                                onConfirm: _submitCase,
+                              );
+                            },
+                            icon: const Icon(Icons.send),
+                            label: const Text("Submit"),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

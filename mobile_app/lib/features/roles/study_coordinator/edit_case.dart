@@ -316,14 +316,112 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     }
   }
 
+  Widget _buildSectionCard({
+    required String title,
+    required List<Widget> children,
+    IconData? icon,
+  }) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCaseForm(Map<String, dynamic> result) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth > 600;
+
+        if (isTablet) {
+          return _buildTabletLayout();
+        } else {
+          return _buildMobileLayout();
+        }
+      },
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCaseInfoSection(),
+        _buildPersonalDetailsSection(),
+        _buildConsentFormSection(),
+        _buildHabitsSection(),
+        _buildClinicalInfoSection(),
+        _buildOralHygieneSection(),
+        _buildDiagnosisSection(),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 1,
+              child: Column(
+                children: [
+                  _buildCaseInfoSection(),
+                  _buildPersonalDetailsSection(),
+                  _buildConsentFormSection(),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildHabitsSection(),
+                  _buildClinicalInfoSection(),
+                  _buildOralHygieneSection(),
+                ],
+              ),
+            ),
+          ],
+        ),
+        _buildDiagnosisSection(),
+      ],
+    );
+  }
+
+  Widget _buildCaseInfoSection() {
+    return _buildSectionCard(
+      title: 'Case Information',
+      icon: Icons.info_outline,
+      children: [
+        Row(
+          children: [
+            Expanded(
               child: _buildTextField(
                 _caseIdController,
                 "Case ID",
@@ -332,7 +430,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _createdByController,
                 "Created By",
@@ -341,17 +438,21 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_createdAtController, "Created At"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_submittedAtController, "Submitted At"),
-        const SizedBox(height: 20),
+      ],
+    );
+  }
 
+  Widget _buildPersonalDetailsSection() {
+    return _buildSectionCard(
+      title: 'Personal Details',
+      icon: Icons.person_outline,
+      children: [
         _buildTextField(_nameController, "Name"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -373,8 +474,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -392,39 +492,84 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_genderController, "Gender"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_ethnicityController, "Ethnicity"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_phoneNumberController, "Phone Number"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_addressController, "Address"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_attendingHospitalController, "Attending Hospital"),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
-        Text("Consent Form"),
+  Widget _buildConsentFormSection() {
+    return _buildSectionCard(
+      title: 'Consent Form',
+      icon: Icons.description_outlined,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _consentFormBytes.isNotEmpty
+                ? Colors.green.withValues(alpha: 0.1)
+                : Colors.grey.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _consentFormBytes.isNotEmpty ? Colors.green : Colors.grey,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                _consentFormBytes.isNotEmpty
+                    ? Icons.check_circle_outline
+                    : Icons.upload_file_outlined,
+                size: 48,
+                color: _consentFormBytes.isNotEmpty
+                    ? Colors.green
+                    : Colors.grey,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _consentFormBytes.isNotEmpty
+                    ? "Consent form available"
+                    : "No consent form available",
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         ElevatedButton.icon(
           onPressed: _consentFormBytes.isEmpty
               ? () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: const Text("No consent form available")),
+                  const SnackBar(content: Text("No consent form available")),
                 )
               : () => _viewFile(_consentFormBytes, fileType: _consentFormType),
           icon: const Icon(Icons.remove_red_eye),
-          label: const Text("View"),
+          label: const Text("View Consent Form"),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.all(16),
+            minimumSize: const Size(double.infinity, 48),
+          ),
         ),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
+  Widget _buildHabitsSection() {
+    return _buildSectionCard(
+      title: 'Habits & Lifestyle',
+      icon: Icons.smoking_rooms_outlined,
+      children: [
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildDropdown<Habit>(
                 "Smoking",
                 _smoking,
@@ -434,7 +579,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _smokingDurationController,
                 "Duration",
@@ -444,12 +588,10 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildDropdown<Habit>(
                 "Betel Quid",
                 _betelQuid,
@@ -459,7 +601,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _betelQuidDurationController,
                 "Duration",
@@ -469,12 +610,10 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildDropdown<Habit>(
                 "Alcohol",
                 _alcohol,
@@ -484,7 +623,6 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildTextField(
                 _alcoholDurationController,
                 "Duration",
@@ -494,36 +632,45 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
+  Widget _buildClinicalInfoSection() {
+    return _buildSectionCard(
+      title: 'Clinical Information',
+      icon: Icons.medical_information_outlined,
+      children: [
         _buildTextField(
           _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_chiefComplaintController, "Chief Complaint"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _presentingComplaintHistoryController,
           "Presenting Complaint History",
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_medicationHistoryController, "Medication History"),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(_medicalHistoryController, "Medical History"),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
-        Text("SLS Containing Toothpaste"),
+  Widget _buildOralHygieneSection() {
+    return _buildSectionCard(
+      title: 'Oral Hygiene',
+      icon: Icons.clean_hands_outlined,
+      children: [
         Row(
           children: [
             Expanded(
               flex: 35,
               child: _buildDropdown<bool>(
-                "Used",
+                "SLS Toothpaste",
                 _slsContainingToothpaste,
                 [true, false],
                 (val) => setState(() => _slsContainingToothpaste = val),
@@ -541,15 +688,13 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
-        Text("Oral Hygiene Products"),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               flex: 35,
               child: _buildDropdown<bool>(
-                "Used",
+                "Other Products",
                 _oralHygieneProductsUsed,
                 [true, false],
                 (val) => setState(() => _oralHygieneProductsUsed = val),
@@ -567,20 +712,48 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _additionalCommentsController,
           "Additional Comments",
           readOnly: false,
           multiline: true,
         ),
-        const SizedBox(height: 8),
+      ],
+    );
+  }
 
-        Text("Oral Cavity Image"),
-        DropdownButton<int>(
+  Widget _buildDiagnosisSection() {
+    return _buildSectionCard(
+      title: 'Diagnosis & Image Review',
+      icon: Icons.photo_camera_outlined,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.blue),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Select an image to view and add diagnosis information.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<int>(
           value: _selectedImageIndex,
-          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: "Select Oral Cavity Image",
+            border: OutlineInputBorder(),
+          ),
           items: List.generate(
             _imageNamesList.length,
             (i) => DropdownMenuItem(value: i, child: Text(_imageNamesList[i])),
@@ -589,8 +762,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             if (val != null) setState(() => _selectedImageIndex = val);
           },
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         GestureDetector(
           onTap: () {
             if (_images.isNotEmpty) {
@@ -598,7 +770,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             }
           },
           child: Container(
-            height: 200,
+            height: 250,
             decoration: BoxDecoration(
               color: Colors.grey[300],
               border: Border.all(
@@ -649,14 +821,19 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
-
+        const SizedBox(height: 24),
+        Text(
+          'Clinical Examination (COE)',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildDropdown(
-                "COE - Lesion Type",
+                "Lesion Type",
                 _coeLesionTypes[_selectedImageIndex],
                 LesionType.values,
                 (val) => setState(() {
@@ -667,9 +844,8 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildDropdown(
-                "COE - Clinical Diagnosis",
+                "Clinical Diagnosis",
                 _coeClinicalDiagnoses[_selectedImageIndex],
                 ClinicalDiagnosis.values,
                 (val) => setState(() {
@@ -680,14 +856,19 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 24),
+        Text(
+          'Biopsy Results',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              flex: 1,
               child: _buildDropdown(
-                "Biopsy - Lesion Type",
+                "Lesion Type",
                 _biopsyLesionTypes[_selectedImageIndex],
                 LesionType.values,
                 (val) => setState(() {
@@ -698,9 +879,8 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
               child: _buildDropdown(
-                "Biopsy - Clinical Diagnosis",
+                "Clinical Diagnosis",
                 _biopsyClinicalDiagnoses[_selectedImageIndex],
                 ClinicalDiagnosis.values,
                 (val) => setState(() {
@@ -711,43 +891,101 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-
+        const SizedBox(height: 16),
         _buildTextField(
           _biopsyAgreeWithCOEController[_selectedImageIndex],
           "Biopsy agree with COE diagnosis?",
         ),
-        const SizedBox(height: 8),
-
-        Text("Biopsy Report"),
+        const SizedBox(height: 24),
+        Text(
+          'Biopsy Report',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color:
+                (_biopsyReportFiles[_selectedImageIndex] != null ||
+                    _biopsyReports[_selectedImageIndex]['url'] != 'NULL')
+                ? Colors.green.withValues(alpha: 0.1)
+                : Colors.grey.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color:
+                  (_biopsyReportFiles[_selectedImageIndex] != null ||
+                      _biopsyReports[_selectedImageIndex]['url'] != 'NULL')
+                  ? Colors.green
+                  : Colors.grey,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                (_biopsyReportFiles[_selectedImageIndex] != null ||
+                        _biopsyReports[_selectedImageIndex]['url'] != 'NULL')
+                    ? Icons.check_circle_outline
+                    : Icons.upload_file_outlined,
+                size: 48,
+                color:
+                    (_biopsyReportFiles[_selectedImageIndex] != null ||
+                        _biopsyReports[_selectedImageIndex]['url'] != 'NULL')
+                    ? Colors.green
+                    : Colors.grey,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                (_biopsyReportFiles[_selectedImageIndex] != null ||
+                        _biopsyReports[_selectedImageIndex]['url'] != 'NULL')
+                    ? "Biopsy report available"
+                    : "No biopsy report uploaded",
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
         Row(
-          mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            ElevatedButton.icon(
-              onPressed: () =>
-                  _showBiopsyReportSourceActionSheet(_selectedImageIndex),
-              icon: _biopsyReportFiles[_selectedImageIndex] != null
-                  ? const Icon(Icons.edit)
-                  : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
-                        ? const Icon(Icons.edit)
-                        : const Icon(Icons.upload_file)),
-              label: _biopsyReportFiles[_selectedImageIndex] != null
-                  ? const Text("Replace")
-                  : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
-                        ? const Text("Replace")
-                        : const Text("Upload")),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () =>
+                    _showBiopsyReportSourceActionSheet(_selectedImageIndex),
+                icon: _biopsyReportFiles[_selectedImageIndex] != null
+                    ? const Icon(Icons.edit)
+                    : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
+                          ? const Icon(Icons.edit)
+                          : const Icon(Icons.upload_file)),
+                label: Text(
+                  _biopsyReportFiles[_selectedImageIndex] != null
+                      ? "Replace"
+                      : (_biopsyReports[_selectedImageIndex]['url'] != 'NULL'
+                            ? "Replace"
+                            : "Upload"),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
             ),
             const SizedBox(width: 12),
-            ElevatedButton.icon(
-              onPressed: () async {
-                await _viewBiopsyReport(_selectedImageIndex);
-              },
-              icon: const Icon(Icons.remove_red_eye),
-              label: const Text("View"),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  await _viewBiopsyReport(_selectedImageIndex);
+                },
+                icon: const Icon(Icons.remove_red_eye),
+                label: const Text("View"),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
       ],
     );
   }
@@ -1354,113 +1592,244 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit Case")),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        enabled: !_isLoading,
-                        decoration: const InputDecoration(
-                          labelText: "Case ID",
-                          border: OutlineInputBorder(),
+      appBar: AppBar(title: const Text("Edit Case"), centerTitle: true),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 800;
+          final maxWidth = isWide ? 1200.0 : double.infinity;
+
+          return Stack(
+            children: [
+              Center(
+                child: Container(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Column(
+                    children: [
+                      // Search Bar Section
+                      Container(
+                        padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                enabled: !_isLoading,
+                                decoration: InputDecoration(
+                                  labelText: "Enter Case ID to Edit",
+                                  hintText: "Type case ID here...",
+                                  prefixIcon: const Icon(Icons.search),
+                                  border: const OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: Theme.of(
+                                    context,
+                                  ).scaffoldBackgroundColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _searchCase,
+                              icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.search),
+                              label: const Text("Search"),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 20,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _searchCase,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text("Search"),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                if (_errorMessage != null)
-                  Align(
-                    alignment: Alignment.center,
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red, fontSize: 16),
-                    ),
-                  ),
-                if (_searchResult != null)
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.only(top: 5.0),
-                      child: _buildCaseForm(_searchResult!),
-                    ),
-                  ),
-                if (_searchResult != null)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          _confirmAction(
-                            title: "Cancel Editing",
-                            message: "Are you sure you want to cancel editing?",
-                            onConfirm: _cancelEditing,
-                          );
-                        },
-                        icon: const Icon(Icons.cancel),
-                        label: const Text("Cancel Editing"),
+
+                      // Content Area
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                          child: Column(
+                            children: [
+                              if (_errorMessage != null)
+                                Card(
+                                  elevation: 2,
+                                  color: Colors.red.shade50,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.error_outline,
+                                          color: Colors.red,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            _errorMessage!,
+                                            style: const TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (_searchResult != null)
+                                _buildCaseForm(_searchResult!),
+                            ],
+                          ),
+                        ),
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          _confirmAction(
-                            title: "Submit Changes",
-                            message:
-                                "Are you sure you want to submit the changes?",
-                            onConfirm: _submitChanges,
-                          );
-                        },
-                        icon: const Icon(Icons.save),
-                        label: const Text("Submit Changes"),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          // Loading overlay with modal barrier
-          if (_isLoading)
-            ModalBarrier(
-              dismissible: false,
-              color: Colors.black.withValues(alpha: 0.3),
-            ),
-          if (_isLoading)
-            Center(
-              child: Card(
-                elevation: 8,
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        "Searching for case...",
-                        style: TextStyle(fontSize: 16),
-                      ),
+
+                      // Action Buttons
+                      if (_searchResult != null)
+                        Container(
+                          padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, -2),
+                              ),
+                            ],
+                          ),
+                          child: isWide
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        _confirmAction(
+                                          title: "Cancel Editing",
+                                          message:
+                                              "Are you sure you want to cancel editing? All changes will be lost.",
+                                          onConfirm: _cancelEditing,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.cancel),
+                                      label: const Text("Cancel Editing"),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.grey,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        _confirmAction(
+                                          title: "Submit Changes",
+                                          message:
+                                              "Are you sure you want to submit the changes?",
+                                          onConfirm: _submitChanges,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.save),
+                                      label: const Text("Submit Changes"),
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          _confirmAction(
+                                            title: "Cancel Editing",
+                                            message:
+                                                "Are you sure you want to cancel editing? All changes will be lost.",
+                                            onConfirm: _cancelEditing,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.cancel),
+                                        label: const Text("Cancel"),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () {
+                                          _confirmAction(
+                                            title: "Submit Changes",
+                                            message:
+                                                "Are you sure you want to submit the changes?",
+                                            onConfirm: _submitChanges,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.save),
+                                        label: const Text("Submit"),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
                     ],
                   ),
                 ),
               ),
-            ),
-        ],
+
+              // Loading overlay with modal barrier
+              if (_isLoading)
+                ModalBarrier(
+                  dismissible: false,
+                  color: Colors.black.withValues(alpha: 0.3),
+                ),
+              if (_isLoading)
+                Center(
+                  child: Card(
+                    elevation: 8,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text(
+                            "Searching for case...",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -9,6 +9,7 @@ ENHANCEMENTS
 /Resolved [ENHANCEMENT] Add forgot password/change password function - SC. AN
 /Nofix [ENHANCEMENT] Using existing email for account registration
 /Resolved [ENHANCEMENT] Allow photo of consent form to be taken directly via the app as well as uploaded - AN (create case + biopsy report in edit case)
+/Resolved [ENHANCEMENT] Modernize all UI (login, register, forgot password, home, role-based screens)
 [ENHANCEMENT] Password for user registration, ideally different for user type and user
 /Resolved [ENHANCEMENT] Diagnose case - do not need to make all fields copy-able - SC (same item as previous resolved bug)
 [ENHANCEMENT] Duration for risk habits cannot leave blank? What should be entered if it is 'No" risk habits. Disable the duration section if No is selected - SC,AN
