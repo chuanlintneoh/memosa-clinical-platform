@@ -100,6 +100,35 @@ class AuthService {
     }
   }
 
+  static Future<Map<String, dynamic>> forgotPassword({
+    required String email,
+  }) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+
+      return {
+        "message":
+            "Password reset email sent successfully if the email exists.",
+      };
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-email') {
+        return {"error": "Invalid email address."};
+      }
+      return {
+        "message":
+            "Password reset email sent successfully if the email exists.",
+      };
+    } on SocketException {
+      return {"error": "Network error: Please check your internet connection."};
+    } catch (e) {
+      // Always return success to prevent email enumeration attacks
+      return {
+        "message":
+            "Password reset email sent successfully if the email exists.",
+      };
+    }
+  }
+
   static Future<void> logout() async {
     await _auth.signOut();
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/auth.dart';
 import 'package:mobile_app/core/services/main.dart';
+import 'package:mobile_app/features/auth/forgot_password_screen.dart';
 import 'package:mobile_app/features/auth/home_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -147,7 +148,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
+
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text("Forgot Password?"),
+                  ),
+                ),
+                const SizedBox(height: 12),
 
                 if (_error != null)
                   Text(_error!, style: const TextStyle(color: Colors.red)),

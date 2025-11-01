@@ -62,6 +62,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
   List<Uint8List> _images = [];
 
   final _formKey = GlobalKey<FormState>();
+  AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
   final List<String> _imageNamesList = [
     "IMG1: Tongue",
     "IMG2: Below Tongue",
@@ -706,6 +707,16 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
 
   Future<void> _submitDiagnosis() async {
     if (!_formKey.currentState!.validate()) {
+      // Enable autovalidation so errors persist when scrolling
+      // Wait for the next frame to avoid ChangeNotifier disposal issues
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _autovalidateMode = AutovalidateMode.always;
+          });
+        }
+      });
+
       int firstMissingLesion = _lesionTypes.indexWhere(
         (t) => t == LesionType.NULL,
       );
@@ -851,6 +862,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
+          autovalidateMode: _autovalidateMode,
           child: Column(
             children: [
               Expanded(
