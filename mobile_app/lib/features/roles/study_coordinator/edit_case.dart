@@ -570,20 +570,30 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>(
-                "Smoking",
-                _smoking,
-                Habit.values,
-                (val) => setState(() => _smoking = val),
-              ),
+              child: _buildDropdown<Habit>("Smoking", _smoking, Habit.values, (
+                val,
+              ) {
+                setState(() {
+                  _smoking = val;
+                  if (val == Habit.NO) {
+                    _smokingDurationController.clear();
+                  }
+                });
+              }),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildTextField(
-                _smokingDurationController,
-                "Duration",
-                readOnly: false,
-                noExpand: true,
+              child: TextFormField(
+                controller: _smokingDurationController,
+                enabled: _smoking != Habit.NO,
+                decoration: InputDecoration(
+                  labelText: "Duration",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -596,16 +606,29 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 "Betel Quid",
                 _betelQuid,
                 Habit.values,
-                (val) => setState(() => _betelQuid = val),
+                (val) {
+                  setState(() {
+                    _betelQuid = val;
+                    if (val == Habit.NO) {
+                      _betelQuidDurationController.clear();
+                    }
+                  });
+                },
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildTextField(
-                _betelQuidDurationController,
-                "Duration",
-                readOnly: false,
-                noExpand: true,
+              child: TextFormField(
+                controller: _betelQuidDurationController,
+                enabled: _betelQuid != Habit.NO,
+                decoration: InputDecoration(
+                  labelText: "Duration",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -614,20 +637,30 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>(
-                "Alcohol",
-                _alcohol,
-                Habit.values,
-                (val) => setState(() => _alcohol = val),
-              ),
+              child: _buildDropdown<Habit>("Alcohol", _alcohol, Habit.values, (
+                val,
+              ) {
+                setState(() {
+                  _alcohol = val;
+                  if (val == Habit.NO) {
+                    _alcoholDurationController.clear();
+                  }
+                });
+              }),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildTextField(
-                _alcoholDurationController,
-                "Duration",
-                readOnly: false,
-                noExpand: true,
+              child: TextFormField(
+                controller: _alcoholDurationController,
+                enabled: _alcohol != Habit.NO,
+                decoration: InputDecoration(
+                  labelText: "Duration",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -673,17 +706,30 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 "SLS Toothpaste",
                 _slsContainingToothpaste,
                 [true, false],
-                (val) => setState(() => _slsContainingToothpaste = val),
+                (val) {
+                  setState(() {
+                    _slsContainingToothpaste = val;
+                    if (val == false) {
+                      _slsContainingToothpasteUsedController.clear();
+                    }
+                  });
+                },
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
-              child: _buildTextField(
-                _slsContainingToothpasteUsedController,
-                "Type",
-                readOnly: false,
-                noExpand: true,
+              child: TextFormField(
+                controller: _slsContainingToothpasteUsedController,
+                enabled: _slsContainingToothpaste != false,
+                decoration: InputDecoration(
+                  labelText: "Type",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -697,17 +743,30 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 "Other Products",
                 _oralHygieneProductsUsed,
                 [true, false],
-                (val) => setState(() => _oralHygieneProductsUsed = val),
+                (val) {
+                  setState(() {
+                    _oralHygieneProductsUsed = val;
+                    if (val == false) {
+                      _oralHygieneProductTypeUsedController.clear();
+                    }
+                  });
+                },
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
-              child: _buildTextField(
-                _oralHygieneProductTypeUsedController,
-                "Type",
-                readOnly: false,
-                noExpand: true,
+              child: TextFormField(
+                controller: _oralHygieneProductTypeUsedController,
+                enabled: _oralHygieneProductsUsed != false,
+                decoration: InputDecoration(
+                  labelText: "Type",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1819,8 +1878,17 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                           CircularProgressIndicator(),
                           SizedBox(height: 16),
                           Text(
-                            "Searching for case...",
-                            style: TextStyle(fontSize: 16),
+                            "Loading case data...",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            "Decrypting and processing case information.\nThis may take a few seconds.",
+                            style: TextStyle(fontSize: 12),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),

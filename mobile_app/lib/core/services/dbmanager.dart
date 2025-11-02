@@ -116,25 +116,31 @@ class DbManagerService {
           final ciphertext = rawCase["encrypted_aes"]["ciphertext"];
           final iv = rawCase["encrypted_aes"]["iv"];
           final salt = rawCase["encrypted_aes"]["salt"];
-          aes = CryptoUtils.decryptAESKeyWithPassphrase(
+
+          // Run PBKDF2 key derivation in background isolate (2-5s operation)
+          aes = await CryptoUtils.decryptAESKeyWithPassphraseAsync(
             ciphertext,
             dotenv.env['PASSWORD'] ?? '',
             salt,
             iv,
           );
+
           if (rawCase["encrypted_blob"] != null) {
             if (rawCase["encrypted_blob"]["url"] != "NULL" &&
                 rawCase["encrypted_blob"]["iv"] != "NULL") {
               final url = rawCase["encrypted_blob"]["url"];
               final ivBlob = rawCase["encrypted_blob"]["iv"];
               final encryptedBlob = await StorageService.download(url);
-              blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
+
+              // Run AES decryption in background isolate (1-2s operation)
+              blob = await CryptoUtils.decryptStringAsync(encryptedBlob, ivBlob, aes);
             }
           }
           if (rawCase["additional_comments"] != null) {
             if (rawCase["additional_comments"]["ciphertext"] != "NULL" &&
                 rawCase["additional_comments"]["iv"] != "NULL") {
-              comments = CryptoUtils.decryptString(
+              // Run comments decryption in background isolate
+              comments = await CryptoUtils.decryptStringAsync(
                 rawCase["additional_comments"]["ciphertext"],
                 rawCase["additional_comments"]["iv"],
                 aes,
@@ -144,14 +150,17 @@ class DbManagerService {
         }
       }
 
+      // Run case parsing (JSON + base64 image decoding) in background isolate (500ms-1s)
+      final caseData = await CaseRetrieveModel.fromRawAsync(
+        rawCase: rawCase,
+        blob: blob,
+        comments: comments,
+      );
+
       return {
         "case_id": caseId,
         "aes": aes,
-        "case_data": CaseRetrieveModel.fromRaw(
-          rawCase: rawCase,
-          blob: blob,
-          comments: comments,
-        ),
+        "case_data": caseData,
       };
     } catch (e) {
       throw Exception("Exception during case search: $e");

@@ -144,6 +144,95 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
     }
   }
 
+  void _deriveAndSetDobFromNric(String idNum) {
+    // Only process if ID type is NRIC and we have at least 6 digits
+    if (_idType != IdType.NRIC || idNum.length < 6) {
+      return;
+    }
+
+    try {
+      // Extract first 6 digits (YYMMDD)
+      final yearStr = idNum.substring(0, 2);
+      final monthStr = idNum.substring(2, 4);
+      final dayStr = idNum.substring(4, 6);
+
+      final year = int.parse(yearStr);
+      final month = int.parse(monthStr);
+      final day = int.parse(dayStr);
+
+      // Validate month and day ranges
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        setState(() {
+          _dobController.clear();
+          _ageController.clear();
+        });
+        return;
+      }
+
+      // Get current date in Malaysia timezone (UTC+8)
+      final nowUtc = DateTime.now().toUtc();
+      final malaysiaOffset = const Duration(hours: 8);
+      final today = nowUtc.add(malaysiaOffset);
+
+      final currentYearTwoDigit = today.year % 100;
+      final currentMonth = today.month;
+      final currentDay = today.day;
+
+      int fullYear;
+
+      // If the year from NRIC is greater than current year's last two digits,
+      // it must be from the previous century (1900s)
+      if (year > currentYearTwoDigit) {
+        fullYear = 1900 + year;
+      } else if (year < currentYearTwoDigit) {
+        // If year is less than current year, it could be 2000s
+        fullYear = 2000 + year;
+      } else {
+        // Same year - check month and day
+        if (month > currentMonth ||
+            (month == currentMonth && day > currentDay)) {
+          // Date hasn't occurred yet this year, must be from 1900s
+          fullYear = 1900 + year;
+        } else {
+          // Date has occurred or is today, could be from 2000s
+          fullYear = 2000 + year;
+        }
+      }
+
+      // Try to create the date to validate it
+      final dob = DateTime(fullYear, month, day);
+
+      // Check if the date is valid and not in the future (compared to Malaysia time)
+      if (dob.isAfter(today)) {
+        setState(() {
+          _dobController.clear();
+          _ageController.clear();
+        });
+        return;
+      }
+
+      // Set the DOB
+      setState(() {
+        _dobController.text = "${dob.toLocal()}".split(' ')[0];
+
+        // Calculate age
+        int age = today.year - dob.year;
+        if (today.month < dob.month ||
+            (today.month == dob.month && today.day < dob.day)) {
+          age--;
+        }
+
+        _ageController.text = age.toString();
+      });
+    } catch (e) {
+      // If any parsing fails or date is invalid, clear the DOB
+      setState(() {
+        _dobController.clear();
+        _ageController.clear();
+      });
+    }
+  }
+
   void _deleteDraft() {
     Navigator.pop(context, {'action': 'delete', 'index': widget.draftIndex});
   }
@@ -926,20 +1015,43 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           children: [
             Expanded(
               flex: 35,
-              child: _buildDropdown<IdType>(
-                "ID Type",
-                _idType,
-                IdType.values,
-                (val) => setState(() => _idType = val),
-              ),
+              child: _buildDropdown<IdType>("ID Type", _idType, IdType.values, (
+                val,
+              ) {
+                setState(() {
+                  _idType = val;
+                  // Try to derive DOB when ID type changes to NRIC
+                  if (val == IdType.NRIC && _idNumController.text.isNotEmpty) {
+                    _deriveAndSetDobFromNric(_idNumController.text);
+                  }
+                });
+              }),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
-              child: _buildTextField(
-                _idNumController,
-                "ID Number",
-                allowedChars: RegExp(r"[A-Za-z0-9]"),
+              child: TextFormField(
+                controller: _idNumController,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    _idType == IdType.NRIC
+                        ? RegExp(r"[0-9]")
+                        : RegExp(r"[A-Z0-9]"),
+                  ),
+                ],
+                decoration: const InputDecoration(labelText: "ID Number"),
+                onChanged: (value) {
+                  // Auto-derive DOB from NRIC when user types
+                  if (_idType == IdType.NRIC) {
+                    _deriveAndSetDobFromNric(value);
+                  }
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return "Enter ID Number";
+                  }
+                  return null;
+                },
               ),
             ),
           ],
@@ -1121,16 +1233,38 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>(
-                "Smoking",
-                _smoking,
-                Habit.values,
-                (val) => setState(() => _smoking = val),
-              ),
+              child: _buildDropdown<Habit>("Smoking", _smoking, Habit.values, (
+                val,
+              ) {
+                setState(() {
+                  _smoking = val;
+                  if (val == Habit.NO) {
+                    _smokingDurationController.clear();
+                  }
+                });
+              }),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildTextField(_smokingDurationController, "Duration"),
+              child: TextFormField(
+                controller: _smokingDurationController,
+                enabled: _smoking != Habit.NO,
+                decoration: InputDecoration(
+                  labelText: "Duration",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (_smoking != Habit.NO &&
+                      (value == null || value.isEmpty)) {
+                    return "Enter Duration";
+                  }
+                  return null;
+                },
+              ),
             ),
           ],
         ),
@@ -1142,12 +1276,37 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 "Betel Quid",
                 _betelQuid,
                 Habit.values,
-                (val) => setState(() => _betelQuid = val),
+                (val) {
+                  setState(() {
+                    _betelQuid = val;
+                    if (val == Habit.NO) {
+                      _betelQuidDurationController.clear();
+                    }
+                  });
+                },
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildTextField(_betelQuidDurationController, "Duration"),
+              child: TextFormField(
+                controller: _betelQuidDurationController,
+                enabled: _betelQuid != Habit.NO,
+                decoration: InputDecoration(
+                  labelText: "Duration",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (_betelQuid != Habit.NO &&
+                      (value == null || value.isEmpty)) {
+                    return "Enter Duration";
+                  }
+                  return null;
+                },
+              ),
             ),
           ],
         ),
@@ -1155,16 +1314,38 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>(
-                "Alcohol",
-                _alcohol,
-                Habit.values,
-                (val) => setState(() => _alcohol = val),
-              ),
+              child: _buildDropdown<Habit>("Alcohol", _alcohol, Habit.values, (
+                val,
+              ) {
+                setState(() {
+                  _alcohol = val;
+                  if (val == Habit.NO) {
+                    _alcoholDurationController.clear();
+                  }
+                });
+              }),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildTextField(_alcoholDurationController, "Duration"),
+              child: TextFormField(
+                controller: _alcoholDurationController,
+                enabled: _alcohol != Habit.NO,
+                decoration: InputDecoration(
+                  labelText: "Duration",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (_alcohol != Habit.NO &&
+                      (value == null || value.isEmpty)) {
+                    return "Enter Duration";
+                  }
+                  return null;
+                },
+              ),
             ),
           ],
         ),
@@ -1209,17 +1390,31 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 "SLS Toothpaste",
                 _slsContainingToothpaste,
                 [true, false],
-                (val) => setState(() => _slsContainingToothpaste = val),
+                (val) {
+                  setState(() {
+                    _slsContainingToothpaste = val;
+                    if (val == false) {
+                      _slsContainingToothpasteUsedController.clear();
+                    }
+                  });
+                },
                 required: false,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
-              child: _buildTextField(
-                _slsContainingToothpasteUsedController,
-                "Type",
-                required: false,
+              child: TextFormField(
+                controller: _slsContainingToothpasteUsedController,
+                enabled: _slsContainingToothpaste != false,
+                decoration: InputDecoration(
+                  labelText: "Type",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1233,17 +1428,31 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 "Other Products",
                 _oralHygieneProductsUsed,
                 [true, false],
-                (val) => setState(() => _oralHygieneProductsUsed = val),
+                (val) {
+                  setState(() {
+                    _oralHygieneProductsUsed = val;
+                    if (val == false) {
+                      _oralHygieneProductTypeUsedController.clear();
+                    }
+                  });
+                },
                 required: false,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 65,
-              child: _buildTextField(
-                _oralHygieneProductTypeUsedController,
-                "Type",
-                required: false,
+              child: TextFormField(
+                controller: _oralHygieneProductTypeUsedController,
+                enabled: _oralHygieneProductsUsed != false,
+                decoration: InputDecoration(
+                  labelText: "Type",
+                  disabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

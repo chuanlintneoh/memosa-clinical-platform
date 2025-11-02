@@ -1,7 +1,23 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
+
+enum IdType { NRIC, PPN }
+
+enum Gender { MALE, FEMALE }
+
+enum Ethnicity {
+  MALAY,
+  CHINESE,
+  INDIAN,
+  IBAN,
+  BIDAYUH,
+  MELANAU,
+  KADAZAN_DUSUN,
+  BAJAU,
+  OTHERS, //TODO: Unsure how to solve free text for OTHERS
+}
 
 enum Habit { YES, OCCASIONALLY, NO }
 
@@ -22,6 +38,46 @@ extension HabitMapper on Habit {
   String get toShortString {
     return toString().split('.').last;
   }
+}
+
+enum DurationUnit { WEEKS, MONTHS, YEARS }
+
+// TODO: Update lesion types as per lesion_types.json with inclusion of NULL
+enum LesionType { NULL, CANCER, OPMD, DA, NAV, BENIGN, NO_LESION, OTHER }
+
+extension LesionTypeMapper on LesionType {
+  static LesionType fromString(String? value) {
+    if (value == null) return LesionType.NULL;
+    return LesionType.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => LesionType.NULL,
+    );
+  }
+}
+
+// TODO: Update clinical diagnoses as per lesion_types.json with inclusion of NULL
+enum ClinicalDiagnosis { NULL, A, B }
+
+extension ClinicalDiagnosisMapper on ClinicalDiagnosis {
+  static ClinicalDiagnosis fromString(String? value) {
+    if (value == null) return ClinicalDiagnosis.NULL;
+    return ClinicalDiagnosis.values.firstWhere(
+      (e) => e.name == value,
+      orElse: () => ClinicalDiagnosis.NULL,
+    );
+  }
+}
+
+enum BiopsyAgreeWithCOE { NULL, YES, NO } // not stored in database
+
+enum PoorQualityReason {
+  AREA_OF_INTEREST_NOT_IN_FRAME,
+  ARTEFACT,
+  BLURRY,
+  DARK,
+  EXTRAORAL,
+  OUT_OF_FOCUS,
+  OVEREXPOSED,
 }
 
 class PublicCaseModel {
@@ -55,10 +111,6 @@ class PublicCaseModel {
     this.additionalComments = "NULL",
   });
 }
-
-enum IdType { NRIC, PPN }
-
-enum Gender { MALE, FEMALE }
 
 class PrivateCaseModel {
   final String address;
@@ -121,32 +173,6 @@ class PrivateCaseModel {
     };
   }
 }
-
-enum LesionType { NULL, CANCER, OPMD, DA, NAV, BENIGN, NO_LESION, OTHER }
-
-extension LesionTypeMapper on LesionType {
-  static LesionType fromString(String? value) {
-    if (value == null) return LesionType.NULL;
-    return LesionType.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => LesionType.NULL,
-    );
-  }
-}
-
-enum ClinicalDiagnosis { NULL, A, B }
-
-extension ClinicalDiagnosisMapper on ClinicalDiagnosis {
-  static ClinicalDiagnosis fromString(String? value) {
-    if (value == null) return ClinicalDiagnosis.NULL;
-    return ClinicalDiagnosis.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => ClinicalDiagnosis.NULL,
-    );
-  }
-}
-
-enum BiopsyAgreeWithCOE { NULL, YES, NO } // not stored in database
 
 class Diagnosis {
   final LesionType aiLesionType;
@@ -442,6 +468,27 @@ class CaseRetrieveModel {
           decryptedData["presenting_complaint_history"] ?? "NULL",
       images: imagesList,
       additionalComments: comments,
+    );
+  }
+
+  /// Create CaseRetrieveModel from raw data in background isolate (non-blocking)
+  static Future<CaseRetrieveModel> fromRawAsync({
+    required Map<String, dynamic> rawCase,
+    required String blob,
+    required String comments,
+  }) async {
+    return compute(_fromRawIsolate, {
+      'rawCase': rawCase,
+      'blob': blob,
+      'comments': comments,
+    });
+  }
+
+  static CaseRetrieveModel _fromRawIsolate(Map<String, dynamic> params) {
+    return CaseRetrieveModel.fromRaw(
+      rawCase: params['rawCase'] as Map<String, dynamic>,
+      blob: params['blob'] as String,
+      comments: params['comments'] as String,
     );
   }
 }

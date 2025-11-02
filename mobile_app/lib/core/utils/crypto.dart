@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:pointycastle/export.dart';
 // import 'package:collection/collection.dart';
 
@@ -55,6 +55,30 @@ class CryptoUtils {
     return _aesCbcDecrypt(encryptedAESKey, derivedKey, iv);
   }
 
+  /// Decrypt AES key with passphrase in background isolate (non-blocking)
+  static Future<Uint8List> decryptAESKeyWithPassphraseAsync(
+    String encryptedAESKeyB64,
+    String passphrase,
+    String saltB64,
+    String ivB64,
+  ) async {
+    return compute(_decryptAESKeyIsolate, {
+      'encryptedAESKeyB64': encryptedAESKeyB64,
+      'passphrase': passphrase,
+      'saltB64': saltB64,
+      'ivB64': ivB64,
+    });
+  }
+
+  static Uint8List _decryptAESKeyIsolate(Map<String, String> params) {
+    return decryptAESKeyWithPassphrase(
+      params['encryptedAESKeyB64']!,
+      params['passphrase']!,
+      params['saltB64']!,
+      params['ivB64']!,
+    );
+  }
+
   /// Encrypt JSON string using AES key
   static Map<String, String> encryptString(String plainText, Uint8List aesKey) {
     // final jsonString = jsonEncode(jsonData);
@@ -83,6 +107,27 @@ class CryptoUtils {
 
     return decryptedString;
     // return jsonDecode(jsonString);
+  }
+
+  /// Decrypt JSON string using AES key in background isolate (non-blocking)
+  static Future<String> decryptStringAsync(
+    String encryptedDataB64,
+    String ivB64,
+    Uint8List aesKey,
+  ) async {
+    return compute(_decryptStringIsolate, {
+      'encryptedDataB64': encryptedDataB64,
+      'ivB64': ivB64,
+      'aesKey': aesKey,
+    });
+  }
+
+  static String _decryptStringIsolate(Map<String, dynamic> params) {
+    return decryptString(
+      params['encryptedDataB64'] as String,
+      params['ivB64'] as String,
+      params['aesKey'] as Uint8List,
+    );
   }
 
   // ======== Internal Helpers ========
