@@ -22,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _inviteCodeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   UserRole? _role = UserRole.clinician;
@@ -60,6 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         role: _role!,
+        inviteCode: _inviteCodeController.text.trim(),
       );
 
       if (result.containsKey("uid") &&
@@ -90,6 +92,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         _nameController.clear();
         _emailController.clear();
+        _inviteCodeController.clear();
         _passwordController.clear();
         _confirmPasswordController.clear();
         setState(() => _role = UserRole.clinician);
@@ -219,6 +222,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
                               if (!emailRegex.hasMatch(value.trim())) {
                                 return "Enter a valid email";
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Invite Code field
+                          TextFormField(
+                            controller: _inviteCodeController,
+                            textCapitalization: TextCapitalization.characters,
+                            textInputAction: TextInputAction.next,
+                            decoration: InputDecoration(
+                              labelText: "Invite Code",
+                              hintText: "Enter your invite code",
+                              prefixIcon: const Icon(Icons.key_outlined),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: theme.colorScheme.surface,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return "Invite code is required";
                               }
                               return null;
                             },

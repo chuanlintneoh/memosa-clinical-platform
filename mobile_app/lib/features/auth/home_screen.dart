@@ -56,7 +56,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case "clinician":
         return [_buildNavButton(Icons.search, "Undiagnosed Cases")];
       case "admin":
-        return [_buildNavButton(Icons.file_download, "Export Bundle")];
+        return [
+          _buildNavButton(Icons.key, "Invite Codes"),
+          _buildNavButton(Icons.file_download, "Export Bundle"),
+        ];
       default:
         return [const Text("Unknown role")];
     }
@@ -92,6 +95,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   MaterialPageRoute(
                     builder: (_) => const UndiagnosedCasesScreen(),
                   ),
+                );
+                break;
+              case "Invite Codes":
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const InviteCodeManagerScreen()),
                 );
                 break;
               case "Export Bundle":
@@ -167,6 +176,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ];
       case "admin":
         return [
+          _buildQuickAction(Icons.key, "Manage Invite Codes", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const InviteCodeManagerScreen()),
+            );
+          }),
           _buildQuickAction(Icons.file_download, "Export Bundle", () {
             Navigator.push(
               context,

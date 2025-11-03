@@ -11,6 +11,7 @@ class RegisterUser(BaseModel):
     email: EmailStr
     password: str
     role: UserRole
+    invite_code: str  # Required invite code for registration
 
 # class LoginUser(BaseModel):
 #     email: EmailStr

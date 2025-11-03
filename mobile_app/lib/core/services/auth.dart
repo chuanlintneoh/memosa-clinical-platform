@@ -17,6 +17,7 @@ class AuthService {
     required String email,
     required String password,
     required UserRole role,
+    required String inviteCode,
   }) async {
     try {
       final serverUp = await MainService.ping();
@@ -30,6 +31,7 @@ class AuthService {
         email: email,
         password: password,
         role: role,
+        inviteCode: inviteCode,
       );
       final body = jsonEncode(user.toJson());
 

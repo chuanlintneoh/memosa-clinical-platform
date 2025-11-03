@@ -724,8 +724,11 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                                   .replaceAll('_', ' ')
                                   .toLowerCase()
                                   .split(' ')
-                                  .map((word) =>
-                                      word[0].toUpperCase() + word.substring(1))
+                                  .map(
+                                    (word) =>
+                                        word[0].toUpperCase() +
+                                        word.substring(1),
+                                  )
                                   .join(' '),
                             ),
                           ),
@@ -737,7 +740,8 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                       });
                     },
                     validator: (val) {
-                      if (_lowQualityFlags[_selectedImageIndex] && val == null) {
+                      if (_lowQualityFlags[_selectedImageIndex] &&
+                          val == null) {
                         return "Please select a reason for low quality";
                       }
                       return null;
@@ -1176,6 +1180,57 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     }
   }
 
+  bool _areAllDiagnosesComplete() {
+    final nullLesionKey = _lesionDataManager.nullLesionType.key;
+    final nullDiagnosisKey = _lesionDataManager.nullClinicalDiagnosis.key;
+
+    for (int i = 0; i < 9; i++) {
+      if (_lesionTypes[i].key == nullLesionKey ||
+          _clinicalDiagnoses[i].key == nullDiagnosisKey) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  int? _findNextUndiagnosedImage() {
+    final nullLesionKey = _lesionDataManager.nullLesionType.key;
+    final nullDiagnosisKey = _lesionDataManager.nullClinicalDiagnosis.key;
+
+    // Start from the next image after current
+    for (int i = _selectedImageIndex + 1; i < 9; i++) {
+      if (_lesionTypes[i].key == nullLesionKey ||
+          _clinicalDiagnoses[i].key == nullDiagnosisKey) {
+        return i;
+      }
+    }
+
+    // Wrap around to check from the beginning
+    for (int i = 0; i < _selectedImageIndex; i++) {
+      if (_lesionTypes[i].key == nullLesionKey ||
+          _clinicalDiagnoses[i].key == nullDiagnosisKey) {
+        return i;
+      }
+    }
+
+    return null;
+  }
+
+  void _goToNextUndiagnosedImage() {
+    final nextIndex = _findNextUndiagnosedImage();
+    if (nextIndex != null) {
+      setState(() {
+        _selectedImageIndex = nextIndex;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Moved to ${_imageNamesList[nextIndex]}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
   Future<void> _confirmAction({
     required String title,
     required String message,
@@ -1274,24 +1329,46 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 12),
-                                      ElevatedButton.icon(
-                                        onPressed: () {
-                                          _confirmAction(
-                                            title: "Submit Diagnosis",
-                                            message:
-                                                "Are you sure you want to submit diagnosis?",
-                                            onConfirm: _submitDiagnosis,
-                                          );
-                                        },
-                                        icon: const Icon(Icons.check),
-                                        label: const Text("Submit Diagnosis"),
-                                        style: ElevatedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 24,
-                                            vertical: 16,
-                                          ),
-                                        ),
-                                      ),
+                                      _areAllDiagnosesComplete()
+                                          ? ElevatedButton.icon(
+                                              onPressed: () {
+                                                _confirmAction(
+                                                  title: "Submit Diagnosis",
+                                                  message:
+                                                      "Are you sure you want to submit diagnosis?",
+                                                  onConfirm: _submitDiagnosis,
+                                                );
+                                              },
+                                              icon: const Icon(Icons.check),
+                                              label: const Text(
+                                                "Submit Diagnosis",
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 24,
+                                                      vertical: 16,
+                                                    ),
+                                              ),
+                                            )
+                                          : ElevatedButton.icon(
+                                              onPressed:
+                                                  _goToNextUndiagnosedImage,
+                                              icon: const Icon(
+                                                Icons.arrow_forward,
+                                              ),
+                                              label: const Text(
+                                                "Next Undiagnosed",
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.orange,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 24,
+                                                      vertical: 16,
+                                                    ),
+                                              ),
+                                            ),
                                     ],
                                   )
                                 : Row(
@@ -1317,18 +1394,31 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
-                                        child: ElevatedButton.icon(
-                                          onPressed: () {
-                                            _confirmAction(
-                                              title: "Submit Diagnosis",
-                                              message:
-                                                  "Are you sure you want to submit diagnosis?",
-                                              onConfirm: _submitDiagnosis,
-                                            );
-                                          },
-                                          icon: const Icon(Icons.check),
-                                          label: const Text("Submit"),
-                                        ),
+                                        child: _areAllDiagnosesComplete()
+                                            ? ElevatedButton.icon(
+                                                onPressed: () {
+                                                  _confirmAction(
+                                                    title: "Submit Diagnosis",
+                                                    message:
+                                                        "Are you sure you want to submit diagnosis?",
+                                                    onConfirm: _submitDiagnosis,
+                                                  );
+                                                },
+                                                icon: const Icon(Icons.check),
+                                                label: const Text("Submit"),
+                                              )
+                                            : ElevatedButton.icon(
+                                                onPressed:
+                                                    _goToNextUndiagnosedImage,
+                                                icon: const Icon(
+                                                  Icons.arrow_forward,
+                                                ),
+                                                label: const Text("Next"),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.orange,
+                                                ),
+                                              ),
                                       ),
                                     ],
                                   ),
