@@ -201,6 +201,7 @@ class DbManagerService {
 
   static Future<List<Map<String, dynamic>>> getUndiagnosedCases({
     required String clinicianID,
+    Function(Map<String, dynamic>)? onCaseProcessed,
   }) async {
     // Clinician retrieves undiagnosed cases
     try {
@@ -238,6 +239,7 @@ class DbManagerService {
               final iv = rawCase["encrypted_aes"]["iv"];
               final salt = rawCase["encrypted_aes"]["salt"];
 
+              // Use synchronous PBKDF2 - isolate overhead makes async slower
               aes = CryptoUtils.decryptAESKeyWithPassphrase(
                 ciphertext,
                 dotenv.env['PASSWORD'] ?? '',
@@ -266,7 +268,7 @@ class DbManagerService {
             }
           }
 
-          results.add({
+          final caseResult = {
             "case_id": caseId,
             "aes": aes,
             "case_data": CaseRetrieveModel.fromRaw(
@@ -274,12 +276,18 @@ class DbManagerService {
               blob: blob,
               comments: comments,
             ),
-          });
+          };
+          results.add(caseResult);
+
+          // Notify callback for progressive rendering
+          onCaseProcessed?.call(caseResult);
         } catch (e) {
-          results.add({
+          final errorResult = {
             "error": "Exception during case decryption: $e",
             "raw_case": rawCase,
-          });
+          };
+          results.add(errorResult);
+          onCaseProcessed?.call(errorResult);
         }
       }
       return results;

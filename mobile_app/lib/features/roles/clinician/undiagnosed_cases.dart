@@ -50,18 +50,20 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
         throw Exception("User ID not found. Please log in and try again.");
       }
 
-      final results = await DbManagerService.getUndiagnosedCases(
+      await DbManagerService.getUndiagnosedCases(
         clinicianID: userId,
+        onCaseProcessed: (caseResult) {
+          // Progressive rendering: add each case as it's ready
+          if (!_isCancelled && mounted && !caseResult.containsKey("error")) {
+            setState(() {
+              _cases.add(caseResult);
+            });
+          }
+        },
       );
 
-      // Check if loading was cancelled before updating state
+      // Check if loading was cancelled before final update
       if (_isCancelled) return;
-
-      for (Map<String, dynamic> result in results) {
-        if (!result.containsKey("error")) {
-          _cases.add(result);
-        }
-      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -127,7 +129,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
               ),
           ],
         ),
-        body: _isLoading
+        body: _isLoading && _cases.isEmpty
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -143,7 +145,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
                   ],
                 ),
               )
-            : _cases.isEmpty
+            : _cases.isEmpty && !_isLoading
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -210,7 +212,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              "${_cases.length} undiagnosed case${_cases.length == 1 ? '' : 's'} pending",
+                              "${_cases.length} undiagnosed case${_cases.length == 1 ? '' : 's'} ${_isLoading ? 'loaded (loading more...)' : 'pending'}",
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: colorScheme.onSurface,
@@ -218,6 +220,15 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
                                   ),
                             ),
                           ),
+                          if (_isLoading)
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colorScheme.primary,
+                              ),
+                            ),
                         ],
                       ),
                     ),
