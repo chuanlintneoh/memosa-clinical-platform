@@ -4,6 +4,7 @@
 2. /Resolved [BUG] Some text gets cut off on diagnose case screen, e.g. gender field - SC (hide copy button for a lot of text fields)
 3. /Resolved [BUG] App crash when tapping screen during searching case
 4. /Resolved [BUG] Stability in case creation (backend error handling in AI inference service after timeout)
+5. /Resolved [BUG] App crashes when tapping back when undiagnosed cases screen loading
 
 # ENHANCEMENTS
 

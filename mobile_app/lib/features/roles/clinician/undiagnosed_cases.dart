@@ -16,6 +16,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
   bool _isLoading = false;
   String? _message;
   final List<Map<String, dynamic>> _cases = [];
+  bool _isCancelled = false;
 
   @override
   void initState() {
@@ -23,8 +24,18 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
     _loadCases();
   }
 
+  @override
+  void dispose() {
+    // Cancel any ongoing loading operations
+    _isCancelled = true;
+    super.dispose();
+  }
+
   Future<void> _loadCases() async {
     try {
+      // Reset cancellation flag when starting a new load
+      _isCancelled = false;
+
       setState(() {
         _isLoading = true;
         _cases.clear();
@@ -43,17 +54,24 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
         clinicianID: userId,
       );
 
+      // Check if loading was cancelled before updating state
+      if (_isCancelled) return;
+
       for (Map<String, dynamic> result in results) {
         if (!result.containsKey("error")) {
           _cases.add(result);
         }
       }
     } catch (e) {
-      setState(() {
-        _message = "Error loading undiagnosed cases: $e";
-      });
+      if (mounted) {
+        setState(() {
+          _message = "Error loading undiagnosed cases: $e";
+        });
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -69,7 +87,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
       ),
     );
 
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() {
         if (result['action'] == 'diagnosed') {
           if (result['index'] != null) {
@@ -87,163 +105,179 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
     final crossAxisCount = isTablet ? (screenWidth >= 900 ? 3 : 2) : 1;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Undiagnosed Cases"),
-        elevation: 0,
-        actions: [
-          if (!_isLoading && _cases.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadCases,
-              tooltip: 'Refresh',
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: colorScheme.primary),
-                  const SizedBox(height: 16),
-                  Text(
-                    "Loading cases...",
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
-                  ),
-                ],
+    return PopScope(
+      canPop: !_isLoading,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isLoading) {
+          // Cancel loading and allow navigation
+          _isCancelled = true;
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Undiagnosed Cases"),
+          elevation: 0,
+          actions: [
+            if (!_isLoading && _cases.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadCases,
+                tooltip: 'Refresh',
               ),
-            )
-          : _cases.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    _message != null
-                        ? Icons.error_outline
-                        : Icons.check_circle_outline,
-                    size: isTablet ? 120 : 80,
-                    color: _message != null
-                        ? Colors.orange.withValues(alpha: 0.5)
-                        : colorScheme.primary.withValues(alpha: 0.3),
-                  ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      _message ?? "All cases are diagnosed",
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  if (_message == null) ...[
-                    const SizedBox(height: 12),
+          ],
+        ),
+        body: _isLoading
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: colorScheme.primary),
+                    const SizedBox(height: 16),
                     Text(
-                      "Tap the refresh button to check again",
+                      "Loading cases...",
                       style: Theme.of(
                         context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey[500]),
-                      textAlign: TextAlign.center,
+                      ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
                     ),
                   ],
-                  const SizedBox(height: 32),
-                  FilledButton.icon(
-                    onPressed: _loadCases,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text("Refresh"),
-                  ),
-                ],
-              ),
-            )
-          : Column(
-              children: [
-                if (_cases.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                ),
+              )
+            : _cases.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _message != null
+                          ? Icons.error_outline
+                          : Icons.check_circle_outline,
+                      size: isTablet ? 120 : 80,
+                      color: _message != null
+                          ? Colors.orange.withValues(alpha: 0.5)
+                          : colorScheme.primary.withValues(alpha: 0.3),
                     ),
-                    color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 20,
-                          color: colorScheme.primary,
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        _message ?? "All cases are diagnosed",
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    if (_message == null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        "Tap the refresh button to check again",
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[500],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            "${_cases.length} undiagnosed case${_cases.length == 1 ? '' : 's'} pending",
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: colorScheme.onSurface,
-                                  fontWeight: FontWeight.w500,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    const SizedBox(height: 32),
+                    FilledButton.icon(
+                      onPressed: _loadCases,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Refresh"),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                children: [
+                  if (_cases.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      color: colorScheme.primaryContainer.withValues(
+                        alpha: 0.3,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 20,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              "${_cases.length} undiagnosed case${_cases.length == 1 ? '' : 's'} pending",
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: colorScheme.onSurface,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (isTablet) {
+                          return GridView.builder(
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  childAspectRatio: 2.5,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
                                 ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (isTablet) {
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                childAspectRatio: 2.5,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                              ),
-                          itemCount: _cases.length,
-                          itemBuilder: (context, index) {
-                            final caseInfo = _cases[index];
-                            return _buildCaseCard(caseInfo, index, colorScheme);
-                          },
-                        );
-                      } else {
-                        return ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          itemCount: _cases.length,
-                          itemBuilder: (context, index) {
-                            final caseInfo = _cases[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildCaseCard(
+                            itemCount: _cases.length,
+                            itemBuilder: (context, index) {
+                              final caseInfo = _cases[index];
+                              return _buildCaseCard(
                                 caseInfo,
                                 index,
                                 colorScheme,
-                              ),
-                            );
-                          },
-                        );
-                      }
-                    },
+                              );
+                            },
+                          );
+                        } else {
+                          return ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            itemCount: _cases.length,
+                            itemBuilder: (context, index) {
+                              final caseInfo = _cases[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _buildCaseCard(
+                                  caseInfo,
+                                  index,
+                                  colorScheme,
+                                ),
+                              );
+                            },
+                          );
+                        }
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-      floatingActionButton: _cases.isEmpty && !_isLoading
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _isLoading ? null : _loadCases,
-              icon: const Icon(Icons.refresh),
-              label: Text(isTablet ? "Refresh Cases" : "Refresh"),
-              elevation: 4,
-            ),
+                ],
+              ),
+        floatingActionButton: _cases.isEmpty && !_isLoading
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _isLoading ? null : _loadCases,
+                icon: const Icon(Icons.refresh),
+                label: Text(isTablet ? "Refresh Cases" : "Refresh"),
+                elevation: 4,
+              ),
+      ),
     );
   }
 
