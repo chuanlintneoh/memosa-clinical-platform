@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/core/models/case.dart';
+import 'package:mobile_app/core/models/lesion_data.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
@@ -47,10 +48,13 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   Uint8List _consentFormBytes = Uint8List(0);
   Habit? _smoking;
   final _smokingDurationController = TextEditingController();
+  DurationUnit? _smokingDurationUnit;
   Habit? _betelQuid;
   final _betelQuidDurationController = TextEditingController();
+  DurationUnit? _betelQuidDurationUnit;
   Habit? _alcohol;
   final _alcoholDurationController = TextEditingController();
+  DurationUnit? _alcoholDurationUnit;
   final _lesionClinicalPresentationController = TextEditingController();
   final _chiefComplaintController = TextEditingController();
   final _presentingComplaintHistoryController = TextEditingController();
@@ -62,7 +66,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   final _oralHygieneProductTypeUsedController = TextEditingController();
   final _additionalCommentsController = TextEditingController();
   List<Uint8List> _images = List.generate(9, (_) => Uint8List(0));
-  List<Diagnosis> _diagnoses = List.generate(9, (_) => Diagnosis.empty());
+  late List<Diagnosis> _diagnoses;
 
   final List<String> _imageNamesList = [
     "IMG1: Tongue",
@@ -76,16 +80,10 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     "IMG9: Lower Lip / Gum",
   ];
   int _selectedImageIndex = 0;
-  List<LesionType> _biopsyLesionTypes = List.filled(9, LesionType.NULL);
-  List<ClinicalDiagnosis> _biopsyClinicalDiagnoses = List.filled(
-    9,
-    ClinicalDiagnosis.NULL,
-  );
-  List<LesionType> _coeLesionTypes = List.filled(9, LesionType.NULL);
-  List<ClinicalDiagnosis> _coeClinicalDiagnoses = List.filled(
-    9,
-    ClinicalDiagnosis.NULL,
-  );
+  late List<LesionTypeEnum> _biopsyLesionTypes;
+  late List<ClinicalDiagnosisEnum> _biopsyClinicalDiagnoses;
+  late List<LesionTypeEnum> _coeLesionTypes;
+  late List<ClinicalDiagnosisEnum> _coeClinicalDiagnoses;
   List<BiopsyAgreeWithCOE> _biopsyAgreeWithCOE = List.filled(
     9,
     BiopsyAgreeWithCOE.NULL,
@@ -102,11 +100,79 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     9,
     null,
   ); // recently picked file pending to upload to storage upon case changes submission
-  List<LesionType> _aiLesionTypes = List.filled(9, LesionType.NULL);
+  late List<LesionTypeEnum> _aiLesionTypes;
+  bool _isUpdating = false; // Prevent circular updates
 
   final ImagePicker _picker = ImagePicker();
+  final LesionDataManager _lesionDataManager = LesionDataManager();
 
-  void _resetState() {
+  @override
+  void initState() {
+    super.initState();
+    _initializeLesionData();
+  }
+
+  Future<void> _initializeLesionData() async {
+    await _lesionDataManager.loadData();
+    setState(() {
+      // Initialize with NULL values
+      _diagnoses = List.generate(9, (_) => Diagnosis.empty());
+      _biopsyLesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+      _biopsyClinicalDiagnoses = List.filled(
+        9,
+        _lesionDataManager.nullClinicalDiagnosis,
+      );
+      _coeLesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+      _coeClinicalDiagnoses = List.filled(
+        9,
+        _lesionDataManager.nullClinicalDiagnosis,
+      );
+      _aiLesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+    });
+  }
+
+  void _parseDuration(
+    String? durationStr,
+    TextEditingController controller,
+    Function(DurationUnit?) setUnit,
+  ) {
+    if (durationStr == null || durationStr.isEmpty || durationStr == "NULL") {
+      controller.text = '';
+      setUnit(null);
+      return;
+    }
+
+    // Parse format: "2 YEARS" into number and unit
+    final parts = durationStr.trim().split(' ');
+    if (parts.length >= 2) {
+      controller.text = parts[0];
+      final unitStr = parts.sublist(1).join(' ');
+      try {
+        final unit = DurationUnit.values.firstWhere(
+          (e) => e.name == unitStr,
+          orElse: () => DurationUnit.YEARS,
+        );
+        setUnit(unit);
+      } catch (_) {
+        setUnit(DurationUnit.YEARS);
+      }
+    } else {
+      controller.text = durationStr;
+      setUnit(null);
+    }
+  }
+
+  String _combineDuration(String number, DurationUnit? unit) {
+    if (number.isEmpty || unit == null) {
+      return '';
+    }
+    return '$number ${unit.name}';
+  }
+
+  Future<void> _resetState() async {
+    // Ensure lesion data is loaded before resetting
+    await _lesionDataManager.loadData();
+
     setState(() {
       _isLoading = false;
       _searchResult = null;
@@ -133,10 +199,13 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       _consentFormBytes = Uint8List(0);
       _smoking = null;
       _smokingDurationController.clear();
+      _smokingDurationUnit = null;
       _betelQuid = null;
       _betelQuidDurationController.clear();
+      _betelQuidDurationUnit = null;
       _alcohol = null;
       _alcoholDurationController.clear();
+      _alcoholDurationUnit = null;
       _lesionClinicalPresentationController.clear();
       _chiefComplaintController.clear();
       _presentingComplaintHistoryController.clear();
@@ -151,10 +220,16 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       _diagnoses = List.generate(9, (_) => Diagnosis.empty());
 
       _selectedImageIndex = 0;
-      _biopsyLesionTypes = List.filled(9, LesionType.NULL);
-      _biopsyClinicalDiagnoses = List.filled(9, ClinicalDiagnosis.NULL);
-      _coeLesionTypes = List.filled(9, LesionType.NULL);
-      _coeClinicalDiagnoses = List.filled(9, ClinicalDiagnosis.NULL);
+      _biopsyLesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+      _biopsyClinicalDiagnoses = List.filled(
+        9,
+        _lesionDataManager.nullClinicalDiagnosis,
+      );
+      _coeLesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+      _coeClinicalDiagnoses = List.filled(
+        9,
+        _lesionDataManager.nullClinicalDiagnosis,
+      );
       _biopsyAgreeWithCOE = List.filled(9, BiopsyAgreeWithCOE.NULL);
       _biopsyAgreeWithCOEController = List.generate(
         9,
@@ -165,7 +240,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         (_) => {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
       );
       _biopsyReportFiles = List.filled(9, null);
-      _aiLesionTypes = List.filled(9, LesionType.NULL);
+      _aiLesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
     });
   }
 
@@ -192,11 +267,23 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       _consentFormType = _caseData!.consentForm["fileType"] ?? "NULL";
       _consentFormBytes = _caseData!.consentForm["fileBytes"] ?? Uint8List(0);
       _smoking = _caseData!.smoking;
-      _smokingDurationController.text = _caseData!.smokingDuration;
+      _parseDuration(
+        _caseData!.smokingDuration,
+        _smokingDurationController,
+        (unit) => _smokingDurationUnit = unit,
+      );
       _betelQuid = _caseData!.betelQuid;
-      _betelQuidDurationController.text = _caseData!.betelQuidDuration;
+      _parseDuration(
+        _caseData!.betelQuidDuration,
+        _betelQuidDurationController,
+        (unit) => _betelQuidDurationUnit = unit,
+      );
       _alcohol = _caseData!.alcohol;
-      _alcoholDurationController.text = _caseData!.alcoholDuration;
+      _parseDuration(
+        _caseData!.alcoholDuration,
+        _alcoholDurationController,
+        (unit) => _alcoholDurationUnit = unit,
+      );
       _lesionClinicalPresentationController.text =
           _caseData!.lesionClinicalPresentation;
       _chiefComplaintController.text = _caseData!.chiefComplaint;
@@ -292,7 +379,12 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     });
 
     try {
+      // Ensure lesion data is loaded before searching
+      await _lesionDataManager.loadData();
+
       final result = await DbManagerService.searchCase(caseId: caseId);
+
+      if (!mounted) return;
 
       if (result.containsKey("error")) {
         setState(() {
@@ -307,12 +399,15 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         _populateData();
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _searchResult = null;
       });
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -567,27 +662,27 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       title: 'Habits & Lifestyle',
       icon: Icons.smoking_rooms_outlined,
       children: [
+        _buildDropdown<Habit>("Smoking", _smoking, Habit.values, (val) {
+          setState(() {
+            _smoking = val;
+            if (val == Habit.NO) {
+              _smokingDurationController.clear();
+              _smokingDurationUnit = null;
+            }
+          });
+        }),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>("Smoking", _smoking, Habit.values, (
-                val,
-              ) {
-                setState(() {
-                  _smoking = val;
-                  if (val == Habit.NO) {
-                    _smokingDurationController.clear();
-                  }
-                });
-              }),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+              flex: 45,
               child: TextFormField(
                 controller: _smokingDurationController,
                 enabled: _smoking != Habit.NO,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: "Duration",
+                  labelText: "Duration (Number)",
                   disabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: Colors.grey.withValues(alpha: 0.3),
@@ -596,33 +691,58 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 ),
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 55,
+              child: IgnorePointer(
+                ignoring: _smoking == Habit.NO,
+                child: DropdownButtonFormField<DurationUnit>(
+                  value: _smokingDurationUnit,
+                  decoration: InputDecoration(
+                    labelText: "Duration Unit",
+                    filled: _smoking == Habit.NO,
+                    fillColor: _smoking == Habit.NO
+                        ? Colors.grey.withValues(alpha: 0.1)
+                        : null,
+                    disabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  items: DurationUnit.values
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .toList(),
+                  onChanged: _smoking != Habit.NO
+                      ? (val) => setState(() => _smokingDurationUnit = val)
+                      : null,
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
+        _buildDropdown<Habit>("Betel Quid", _betelQuid, Habit.values, (val) {
+          setState(() {
+            _betelQuid = val;
+            if (val == Habit.NO) {
+              _betelQuidDurationController.clear();
+              _betelQuidDurationUnit = null;
+            }
+          });
+        }),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>(
-                "Betel Quid",
-                _betelQuid,
-                Habit.values,
-                (val) {
-                  setState(() {
-                    _betelQuid = val;
-                    if (val == Habit.NO) {
-                      _betelQuidDurationController.clear();
-                    }
-                  });
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+              flex: 45,
               child: TextFormField(
                 controller: _betelQuidDurationController,
                 enabled: _betelQuid != Habit.NO,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: "Duration",
+                  labelText: "Duration (Number)",
                   disabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: Colors.grey.withValues(alpha: 0.3),
@@ -631,35 +751,91 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 ),
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 55,
+              child: IgnorePointer(
+                ignoring: _betelQuid == Habit.NO,
+                child: DropdownButtonFormField<DurationUnit>(
+                  value: _betelQuidDurationUnit,
+                  decoration: InputDecoration(
+                    labelText: "Duration Unit",
+                    filled: _betelQuid == Habit.NO,
+                    fillColor: _betelQuid == Habit.NO
+                        ? Colors.grey.withValues(alpha: 0.1)
+                        : null,
+                    disabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  items: DurationUnit.values
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .toList(),
+                  onChanged: _betelQuid != Habit.NO
+                      ? (val) => setState(() => _betelQuidDurationUnit = val)
+                      : null,
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
+        _buildDropdown<Habit>("Alcohol", _alcohol, Habit.values, (val) {
+          setState(() {
+            _alcohol = val;
+            if (val == Habit.NO) {
+              _alcoholDurationController.clear();
+              _alcoholDurationUnit = null;
+            }
+          });
+        }),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>("Alcohol", _alcohol, Habit.values, (
-                val,
-              ) {
-                setState(() {
-                  _alcohol = val;
-                  if (val == Habit.NO) {
-                    _alcoholDurationController.clear();
-                  }
-                });
-              }),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+              flex: 45,
               child: TextFormField(
                 controller: _alcoholDurationController,
                 enabled: _alcohol != Habit.NO,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: "Duration",
+                  labelText: "Duration (Number)",
                   disabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: Colors.grey.withValues(alpha: 0.3),
                     ),
                   ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 55,
+              child: IgnorePointer(
+                ignoring: _alcohol == Habit.NO,
+                child: DropdownButtonFormField<DurationUnit>(
+                  value: _alcoholDurationUnit,
+                  decoration: InputDecoration(
+                    labelText: "Duration Unit",
+                    filled: _alcohol == Habit.NO,
+                    fillColor: _alcohol == Habit.NO
+                        ? Colors.grey.withValues(alpha: 0.1)
+                        : null,
+                    disabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  items: DurationUnit.values
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .toList(),
+                  onChanged: _alcohol != Habit.NO
+                      ? (val) => setState(() => _alcoholDurationUnit = val)
+                      : null,
                 ),
               ),
             ),
@@ -888,32 +1064,67 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildDropdown(
-                "Lesion Type",
-                _coeLesionTypes[_selectedImageIndex],
-                LesionType.values,
-                (val) => setState(() {
-                  _coeLesionTypes[_selectedImageIndex] = val!;
-                  _updateBiopsyAgreeWithCOE(_selectedImageIndex);
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDropdown(
-                "Clinical Diagnosis",
-                _coeClinicalDiagnoses[_selectedImageIndex],
-                ClinicalDiagnosis.values,
-                (val) => setState(() {
-                  _coeClinicalDiagnoses[_selectedImageIndex] = val!;
-                  _updateBiopsyAgreeWithCOE(_selectedImageIndex);
-                }),
-              ),
-            ),
-          ],
+        _buildLesionTypeDropdown(
+          "Lesion Type",
+          _coeLesionTypes[_selectedImageIndex],
+          (val) {
+            if (_isUpdating) return;
+            _isUpdating = true;
+
+            setState(() {
+              _coeLesionTypes[_selectedImageIndex] = val;
+
+              // If lesion type is NULL, set clinical diagnosis to NULL
+              if (val.key == _lesionDataManager.nullLesionType.key) {
+                _coeClinicalDiagnoses[_selectedImageIndex] =
+                    _lesionDataManager.nullClinicalDiagnosis;
+              } else {
+                // Check if current diagnosis belongs to new lesion type
+                final currentDiagnosis =
+                    _coeClinicalDiagnoses[_selectedImageIndex];
+                if (!_lesionDataManager.diagnosisBelongsToLesionType(
+                  currentDiagnosis,
+                  val,
+                )) {
+                  // Reset to NULL if diagnosis doesn't belong to new lesion type
+                  _coeClinicalDiagnoses[_selectedImageIndex] =
+                      _lesionDataManager.nullClinicalDiagnosis;
+                }
+              }
+
+              _updateBiopsyAgreeWithCOE(_selectedImageIndex);
+            });
+
+            _isUpdating = false;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildClinicalDiagnosisDropdown(
+          "Clinical Diagnosis",
+          _coeClinicalDiagnoses[_selectedImageIndex],
+          _coeLesionTypes[_selectedImageIndex],
+          (val) {
+            if (_isUpdating) return;
+            _isUpdating = true;
+
+            setState(() {
+              _coeClinicalDiagnoses[_selectedImageIndex] = val;
+
+              // If diagnosis is NOT NULL, update lesion type to match
+              if (val.key != _lesionDataManager.nullClinicalDiagnosis.key) {
+                final lesionType = _lesionDataManager
+                    .findLesionTypeForDiagnosis(val);
+                if (lesionType != null) {
+                  _coeLesionTypes[_selectedImageIndex] = lesionType;
+                }
+              }
+              // If diagnosis is NULL, don't change lesion type
+
+              _updateBiopsyAgreeWithCOE(_selectedImageIndex);
+            });
+
+            _isUpdating = false;
+          },
         ),
         const SizedBox(height: 24),
         Text(
@@ -923,32 +1134,67 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildDropdown(
-                "Lesion Type",
-                _biopsyLesionTypes[_selectedImageIndex],
-                LesionType.values,
-                (val) => setState(() {
-                  _biopsyLesionTypes[_selectedImageIndex] = val!;
-                  _updateBiopsyAgreeWithCOE(_selectedImageIndex);
-                }),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDropdown(
-                "Clinical Diagnosis",
-                _biopsyClinicalDiagnoses[_selectedImageIndex],
-                ClinicalDiagnosis.values,
-                (val) => setState(() {
-                  _biopsyClinicalDiagnoses[_selectedImageIndex] = val!;
-                  _updateBiopsyAgreeWithCOE(_selectedImageIndex);
-                }),
-              ),
-            ),
-          ],
+        _buildLesionTypeDropdown(
+          "Lesion Type",
+          _biopsyLesionTypes[_selectedImageIndex],
+          (val) {
+            if (_isUpdating) return;
+            _isUpdating = true;
+
+            setState(() {
+              _biopsyLesionTypes[_selectedImageIndex] = val;
+
+              // If lesion type is NULL, set clinical diagnosis to NULL
+              if (val.key == _lesionDataManager.nullLesionType.key) {
+                _biopsyClinicalDiagnoses[_selectedImageIndex] =
+                    _lesionDataManager.nullClinicalDiagnosis;
+              } else {
+                // Check if current diagnosis belongs to new lesion type
+                final currentDiagnosis =
+                    _biopsyClinicalDiagnoses[_selectedImageIndex];
+                if (!_lesionDataManager.diagnosisBelongsToLesionType(
+                  currentDiagnosis,
+                  val,
+                )) {
+                  // Reset to NULL if diagnosis doesn't belong to new lesion type
+                  _biopsyClinicalDiagnoses[_selectedImageIndex] =
+                      _lesionDataManager.nullClinicalDiagnosis;
+                }
+              }
+
+              _updateBiopsyAgreeWithCOE(_selectedImageIndex);
+            });
+
+            _isUpdating = false;
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildClinicalDiagnosisDropdown(
+          "Clinical Diagnosis",
+          _biopsyClinicalDiagnoses[_selectedImageIndex],
+          _biopsyLesionTypes[_selectedImageIndex],
+          (val) {
+            if (_isUpdating) return;
+            _isUpdating = true;
+
+            setState(() {
+              _biopsyClinicalDiagnoses[_selectedImageIndex] = val;
+
+              // If diagnosis is NOT NULL, update lesion type to match
+              if (val.key != _lesionDataManager.nullClinicalDiagnosis.key) {
+                final lesionType = _lesionDataManager
+                    .findLesionTypeForDiagnosis(val);
+                if (lesionType != null) {
+                  _biopsyLesionTypes[_selectedImageIndex] = lesionType;
+                }
+              }
+              // If diagnosis is NULL, don't change lesion type
+
+              _updateBiopsyAgreeWithCOE(_selectedImageIndex);
+            });
+
+            _isUpdating = false;
+          },
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -1115,6 +1361,71 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     );
   }
 
+  Widget _buildLesionTypeDropdown(
+    String label,
+    LesionTypeEnum value,
+    void Function(LesionTypeEnum) onChanged,
+  ) {
+    final allLesionTypes = _lesionDataManager.allLesionTypes;
+
+    return DropdownButtonFormField<LesionTypeEnum>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      isExpanded: true,
+      items: allLesionTypes
+          .map(
+            (lesionType) => DropdownMenuItem(
+              value: lesionType,
+              child: Text(lesionType.key),
+            ),
+          )
+          .toList(),
+      onChanged: (val) {
+        if (val != null) {
+          onChanged(val);
+        }
+      },
+    );
+  }
+
+  Widget _buildClinicalDiagnosisDropdown(
+    String label,
+    ClinicalDiagnosisEnum value,
+    LesionTypeEnum currentLesionType,
+    void Function(ClinicalDiagnosisEnum) onChanged,
+  ) {
+    final allDiagnoses = _lesionDataManager.allClinicalDiagnoses;
+    final validDiagnoses = _lesionDataManager.getClinicalDiagnosesForLesionType(
+      currentLesionType,
+    );
+    final validDiagnosisKeys = validDiagnoses.map((d) => d.key).toSet();
+
+    return DropdownButtonFormField<ClinicalDiagnosisEnum>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      isExpanded: true,
+      items: allDiagnoses.map((diagnosis) {
+        final isValid = validDiagnosisKeys.contains(diagnosis.key);
+        return DropdownMenuItem(
+          value: diagnosis,
+          child: Opacity(
+            opacity: isValid ? 1.0 : 0.4,
+            child: Text(
+              diagnosis.displayText,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        if (val != null) {
+          onChanged(val);
+        }
+      },
+    );
+  }
+
   Future<void> _viewFile(
     Uint8List fileBytes, {
     String fileType = "NULL",
@@ -1205,14 +1516,19 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
 
     _biopsyAgreeWithCOE[index] = BiopsyAgreeWithCOE.NULL;
 
-    if (biopsyLesion != LesionType.NULL && coeLesion != LesionType.NULL) {
-      _biopsyAgreeWithCOE[index] = (biopsyLesion == coeLesion)
+    final nullLesionKey = _lesionDataManager.nullLesionType.key;
+    final nullDiagnosisKey = _lesionDataManager.nullClinicalDiagnosis.key;
+
+    // Compare using sanitized keys
+    if (biopsyLesion.key != nullLesionKey && coeLesion.key != nullLesionKey) {
+      _biopsyAgreeWithCOE[index] = (biopsyLesion.key == coeLesion.key)
           ? BiopsyAgreeWithCOE.YES
           : BiopsyAgreeWithCOE.NO;
-      if (biopsyDiagnosis != ClinicalDiagnosis.NULL &&
-          coeDiagnosis != ClinicalDiagnosis.NULL) {
+      if (biopsyDiagnosis.key != nullDiagnosisKey &&
+          coeDiagnosis.key != nullDiagnosisKey) {
         _biopsyAgreeWithCOE[index] =
-            (biopsyLesion == coeLesion && biopsyDiagnosis == coeDiagnosis)
+            (biopsyLesion.key == coeLesion.key &&
+                biopsyDiagnosis.key == coeDiagnosis.key)
             ? BiopsyAgreeWithCOE.YES
             : BiopsyAgreeWithCOE.NO;
       }
@@ -1485,8 +1801,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     );
   }
 
-  void _cancelEditing() {
-    _resetState();
+  Future<void> _cancelEditing() async {
+    await _resetState();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Editing cancelled, no changes are submitted."),
@@ -1561,16 +1878,31 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
 
       final CaseEditModel editCase = CaseEditModel(
         alcohol: _alcohol ?? caseData.alcohol,
-        alcoholDuration: _alcoholDurationController.text.isNotEmpty
-            ? _alcoholDurationController.text
+        alcoholDuration:
+            _alcoholDurationController.text.isNotEmpty &&
+                _alcoholDurationUnit != null
+            ? _combineDuration(
+                _alcoholDurationController.text,
+                _alcoholDurationUnit,
+              )
             : caseData.alcoholDuration,
         betelQuid: _betelQuid ?? caseData.betelQuid,
-        betelQuidDuration: _betelQuidDurationController.text.isNotEmpty
-            ? _betelQuidDurationController.text
+        betelQuidDuration:
+            _betelQuidDurationController.text.isNotEmpty &&
+                _betelQuidDurationUnit != null
+            ? _combineDuration(
+                _betelQuidDurationController.text,
+                _betelQuidDurationUnit,
+              )
             : caseData.betelQuidDuration,
         smoking: _smoking ?? caseData.smoking,
-        smokingDuration: _smokingDurationController.text.isNotEmpty
-            ? _smokingDurationController.text
+        smokingDuration:
+            _smokingDurationController.text.isNotEmpty &&
+                _smokingDurationUnit != null
+            ? _combineDuration(
+                _smokingDurationController.text,
+                _smokingDurationUnit,
+              )
             : caseData.smokingDuration,
         oralHygieneProductsUsed:
             _oralHygieneProductsUsed ?? caseData.oralHygieneProductsUsed,
@@ -1601,7 +1933,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Case updated successfully")),
         );
-        _resetState();
+        await _resetState();
       } else {
         Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(

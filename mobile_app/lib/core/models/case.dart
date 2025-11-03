@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
+import 'package:mobile_app/core/models/lesion_data.dart';
 
 enum IdType { NRIC, PPN }
 
@@ -16,7 +17,7 @@ enum Ethnicity {
   MELANAU,
   KADAZAN_DUSUN,
   BAJAU,
-  OTHERS, //TODO: Unsure how to solve free text for OTHERS
+  OTHERS,
 }
 
 enum Habit { YES, OCCASIONALLY, NO }
@@ -41,32 +42,6 @@ extension HabitMapper on Habit {
 }
 
 enum DurationUnit { WEEKS, MONTHS, YEARS }
-
-// TODO: Update lesion types as per lesion_types.json with inclusion of NULL
-enum LesionType { NULL, CANCER, OPMD, DA, NAV, BENIGN, NO_LESION, OTHER }
-
-extension LesionTypeMapper on LesionType {
-  static LesionType fromString(String? value) {
-    if (value == null) return LesionType.NULL;
-    return LesionType.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => LesionType.NULL,
-    );
-  }
-}
-
-// TODO: Update clinical diagnoses as per lesion_types.json with inclusion of NULL
-enum ClinicalDiagnosis { NULL, A, B }
-
-extension ClinicalDiagnosisMapper on ClinicalDiagnosis {
-  static ClinicalDiagnosis fromString(String? value) {
-    if (value == null) return ClinicalDiagnosis.NULL;
-    return ClinicalDiagnosis.values.firstWhere(
-      (e) => e.name == value,
-      orElse: () => ClinicalDiagnosis.NULL,
-    );
-  }
-}
 
 enum BiopsyAgreeWithCOE { NULL, YES, NO } // not stored in database
 
@@ -175,12 +150,12 @@ class PrivateCaseModel {
 }
 
 class Diagnosis {
-  final LesionType aiLesionType;
-  final ClinicalDiagnosis biopsyClinicalDiagnosis;
-  final LesionType biopsyLesionType;
+  final LesionTypeEnum aiLesionType;
+  final ClinicalDiagnosisEnum biopsyClinicalDiagnosis;
+  final LesionTypeEnum biopsyLesionType;
   final Map<String, dynamic> biopsyReport;
-  final ClinicalDiagnosis coeClinicalDiagnosis;
-  final LesionType coeLesionType;
+  final ClinicalDiagnosisEnum coeClinicalDiagnosis;
+  final LesionTypeEnum coeLesionType;
   BiopsyAgreeWithCOE biopsyAgreeWithCoe = BiopsyAgreeWithCOE.NULL;
 
   Diagnosis({
@@ -191,94 +166,118 @@ class Diagnosis {
     required this.coeClinicalDiagnosis,
     required this.coeLesionType,
   }) {
-    if (biopsyLesionType != LesionType.NULL &&
-        coeLesionType != LesionType.NULL) {
-      biopsyAgreeWithCoe = (biopsyLesionType == coeLesionType)
+    // Compare using sanitized keys - NULL key is always "NULL"
+    const nullLesionKey = 'NULL';
+    const nullDiagnosisKey = 'NULL';
+
+    if (biopsyLesionType.key != nullLesionKey &&
+        coeLesionType.key != nullLesionKey) {
+      biopsyAgreeWithCoe = (biopsyLesionType.key == coeLesionType.key)
           ? BiopsyAgreeWithCOE.YES
           : BiopsyAgreeWithCOE.NO;
-      if (biopsyClinicalDiagnosis != ClinicalDiagnosis.NULL &&
-          coeClinicalDiagnosis != ClinicalDiagnosis.NULL) {
+      if (biopsyClinicalDiagnosis.key != nullDiagnosisKey &&
+          coeClinicalDiagnosis.key != nullDiagnosisKey) {
         biopsyAgreeWithCoe =
-            (biopsyLesionType == coeLesionType &&
-                biopsyClinicalDiagnosis == coeClinicalDiagnosis)
+            (biopsyLesionType.key == coeLesionType.key &&
+                biopsyClinicalDiagnosis.key == coeClinicalDiagnosis.key)
             ? BiopsyAgreeWithCOE.YES
             : BiopsyAgreeWithCOE.NO;
       }
     }
   }
 
-  factory Diagnosis.empty() => Diagnosis(
-    aiLesionType: LesionType.NULL,
-    biopsyClinicalDiagnosis: ClinicalDiagnosis.NULL,
-    biopsyLesionType: LesionType.NULL,
-    biopsyReport: {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
-    coeClinicalDiagnosis: ClinicalDiagnosis.NULL,
-    coeLesionType: LesionType.NULL,
-  );
+  factory Diagnosis.empty() {
+    final manager = LesionDataManager();
+    return Diagnosis(
+      aiLesionType: manager.nullLesionType,
+      biopsyClinicalDiagnosis: manager.nullClinicalDiagnosis,
+      biopsyLesionType: manager.nullLesionType,
+      biopsyReport: {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
+      coeClinicalDiagnosis: manager.nullClinicalDiagnosis,
+      coeLesionType: manager.nullLesionType,
+    );
+  }
 
   factory Diagnosis.fromRaw(Map<String, dynamic> rawDiagnosis) {
+    final manager = LesionDataManager();
     return Diagnosis(
-      aiLesionType: LesionTypeMapper.fromString(rawDiagnosis["ai_lesion_type"]),
-      biopsyClinicalDiagnosis: ClinicalDiagnosisMapper.fromString(
-        rawDiagnosis["biopsy_clinical_diagnosis"],
+      aiLesionType: manager.getLesionTypeByStorageValue(
+        rawDiagnosis["ai_lesion_type"] ?? "NULL",
       ),
-      biopsyLesionType: LesionTypeMapper.fromString(
-        rawDiagnosis["biopsy_lesion_type"],
+      biopsyClinicalDiagnosis: manager.getClinicalDiagnosisByStorageValue(
+        rawDiagnosis["biopsy_clinical_diagnosis"] ?? "NULL",
+      ),
+      biopsyLesionType: manager.getLesionTypeByStorageValue(
+        rawDiagnosis["biopsy_lesion_type"] ?? "NULL",
       ),
       biopsyReport:
           rawDiagnosis["biopsy_report"] ??
           {"url": "NULL", "iv": "NULL", "fileType": "NULL"},
-      coeClinicalDiagnosis: ClinicalDiagnosisMapper.fromString(
-        rawDiagnosis["coe_clinical_diagnosis"],
+      coeClinicalDiagnosis: manager.getClinicalDiagnosisByStorageValue(
+        rawDiagnosis["coe_clinical_diagnosis"] ?? "NULL",
       ),
-      coeLesionType: LesionTypeMapper.fromString(
-        rawDiagnosis["coe_lesion_type"],
+      coeLesionType: manager.getLesionTypeByStorageValue(
+        rawDiagnosis["coe_lesion_type"] ?? "NULL",
       ),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      "ai_lesion_type": aiLesionType.name,
-      "biopsy_clinical_diagnosis": biopsyClinicalDiagnosis.name,
-      "biopsy_lesion_type": biopsyLesionType.name,
+      "ai_lesion_type": aiLesionType.storageValue,
+      "biopsy_clinical_diagnosis": biopsyClinicalDiagnosis.storageValue,
+      "biopsy_lesion_type": biopsyLesionType.storageValue,
       "biopsy_report": biopsyReport,
-      "coe_clinical_diagnosis": coeClinicalDiagnosis.name,
-      "coe_lesion_type": coeLesionType.name,
+      "coe_clinical_diagnosis": coeClinicalDiagnosis.storageValue,
+      "coe_lesion_type": coeLesionType.storageValue,
     };
   }
 
   Map<String, dynamic> toEditJson() {
     // disable editing of ai_lesion_type
     return {
-      "biopsy_clinical_diagnosis": biopsyClinicalDiagnosis.name,
-      "biopsy_lesion_type": biopsyLesionType.name,
+      "biopsy_clinical_diagnosis": biopsyClinicalDiagnosis.storageValue,
+      "biopsy_lesion_type": biopsyLesionType.storageValue,
       "biopsy_report": biopsyReport,
-      "coe_clinical_diagnosis": coeClinicalDiagnosis.name,
-      "coe_lesion_type": coeLesionType.name,
+      "coe_clinical_diagnosis": coeClinicalDiagnosis.storageValue,
+      "coe_lesion_type": coeLesionType.storageValue,
     };
   }
 }
 
 class ClinicianDiagnosis {
   final String clinicianID;
-  final ClinicalDiagnosis clinicalDiagnosis;
-  final LesionType lesionType;
+  final ClinicalDiagnosisEnum clinicalDiagnosis;
+  final LesionTypeEnum lesionType;
   final bool lowQuality;
+  final PoorQualityReason? lowQualityReason;
 
   ClinicianDiagnosis({
     required this.clinicianID,
     required this.clinicalDiagnosis,
     required this.lesionType,
     required this.lowQuality,
+    this.lowQualityReason,
   });
 
   Map<String, dynamic> toJson() {
+    String formatReason(PoorQualityReason reason) {
+      return reason.name
+          .replaceAll('_', ' ')
+          .toLowerCase()
+          .split(' ')
+          .map((word) => word[0].toUpperCase() + word.substring(1))
+          .join(' ');
+    }
+
     return {
       clinicianID: {
-        "clinical_diagnosis": clinicalDiagnosis.name,
-        "lesion_type": lesionType.name,
+        "clinical_diagnosis": clinicalDiagnosis.storageValue,
+        "lesion_type": lesionType.storageValue,
         "low_quality": lowQuality,
+        "low_quality_reason": lowQuality && lowQualityReason != null
+            ? formatReason(lowQualityReason!)
+            : "NULL",
       },
     };
   }
@@ -471,24 +470,23 @@ class CaseRetrieveModel {
     );
   }
 
-  /// Create CaseRetrieveModel from raw data in background isolate (non-blocking)
+  /// Create CaseRetrieveModel from raw data (async to ensure lesion data is loaded)
   static Future<CaseRetrieveModel> fromRawAsync({
     required Map<String, dynamic> rawCase,
     required String blob,
     required String comments,
   }) async {
-    return compute(_fromRawIsolate, {
-      'rawCase': rawCase,
-      'blob': blob,
-      'comments': comments,
-    });
-  }
+    // Ensure lesion data is loaded before parsing
+    // Note: Crypto operations (PBKDF2, AES) are already async in isolates,
+    // JSON parsing is fast, no need for another isolate
+    final lesionDataManager = LesionDataManager();
+    await lesionDataManager.loadData();
 
-  static CaseRetrieveModel _fromRawIsolate(Map<String, dynamic> params) {
+    // Parse synchronously - it's fast and avoids expensive serialization overhead
     return CaseRetrieveModel.fromRaw(
-      rawCase: params['rawCase'] as Map<String, dynamic>,
-      blob: params['blob'] as String,
-      comments: params['comments'] as String,
+      rawCase: rawCase,
+      blob: blob,
+      comments: comments,
     );
   }
 }

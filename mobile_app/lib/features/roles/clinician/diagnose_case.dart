@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_app/core/models/case.dart';
+import 'package:mobile_app/core/models/lesion_data.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -75,17 +76,33 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     "IMG9: Lower Lip / Gum",
   ];
   int _selectedImageIndex = 0;
-  final List<LesionType> _lesionTypes = List.filled(9, LesionType.NULL);
-  final List<ClinicalDiagnosis> _clinicalDiagnoses = List.filled(
-    9,
-    ClinicalDiagnosis.NULL,
-  );
+  late List<LesionTypeEnum> _lesionTypes;
+  late List<ClinicalDiagnosisEnum> _clinicalDiagnoses;
   final List<bool> _lowQualityFlags = List.filled(9, false);
+  final List<PoorQualityReason?> _lowQualityReasons = List.filled(9, null);
+  bool _isUpdating = false; // Prevent circular updates
+  final LesionDataManager _lesionDataManager = LesionDataManager();
+  bool _isLoading = true; // Track loading state
 
   @override
   void initState() {
     super.initState();
+    _initializeLesionData();
+  }
+
+  Future<void> _initializeLesionData() async {
+    await _lesionDataManager.loadData();
+    setState(() {
+      _lesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+      _clinicalDiagnoses = List.filled(
+        9,
+        _lesionDataManager.nullClinicalDiagnosis,
+      );
+    });
     _populateData();
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   void _populateData() {
@@ -513,8 +530,9 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           ),
           items: List.generate(_imageNamesList.length, (i) {
             final incomplete =
-                _lesionTypes[i] == LesionType.NULL ||
-                _clinicalDiagnoses[i] == ClinicalDiagnosis.NULL;
+                _lesionTypes[i].key == _lesionDataManager.nullLesionType.key ||
+                _clinicalDiagnoses[i].key ==
+                    _lesionDataManager.nullClinicalDiagnosis.key;
 
             return DropdownMenuItem(
               value: i,
@@ -606,47 +624,146 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        _buildDropdown(
+        _buildLesionTypeDropdown(
           "Lesion Type",
           _lesionTypes[_selectedImageIndex],
-          LesionType.values,
-          (val) => setState(() => _lesionTypes[_selectedImageIndex] = val!),
+          (val) {
+            if (_isUpdating) return;
+            _isUpdating = true;
+
+            setState(() {
+              _lesionTypes[_selectedImageIndex] = val;
+
+              // If lesion type is NULL, set clinical diagnosis to NULL
+              if (val.key == _lesionDataManager.nullLesionType.key) {
+                _clinicalDiagnoses[_selectedImageIndex] =
+                    _lesionDataManager.nullClinicalDiagnosis;
+              } else {
+                // Check if current diagnosis belongs to new lesion type
+                final currentDiagnosis =
+                    _clinicalDiagnoses[_selectedImageIndex];
+                if (!_lesionDataManager.diagnosisBelongsToLesionType(
+                  currentDiagnosis,
+                  val,
+                )) {
+                  // Reset to NULL if diagnosis doesn't belong to new lesion type
+                  _clinicalDiagnoses[_selectedImageIndex] =
+                      _lesionDataManager.nullClinicalDiagnosis;
+                }
+              }
+            });
+
+            _isUpdating = false;
+          },
         ),
         const SizedBox(height: 16),
-        _buildDropdown(
+        _buildClinicalDiagnosisDropdown(
           "Clinical Diagnosis",
           _clinicalDiagnoses[_selectedImageIndex],
-          ClinicalDiagnosis.values,
-          (val) =>
-              setState(() => _clinicalDiagnoses[_selectedImageIndex] = val!),
+          _lesionTypes[_selectedImageIndex],
+          (val) {
+            if (_isUpdating) return;
+            _isUpdating = true;
+
+            setState(() {
+              _clinicalDiagnoses[_selectedImageIndex] = val;
+
+              // If diagnosis is NOT NULL, update lesion type to match
+              if (val.key != _lesionDataManager.nullClinicalDiagnosis.key) {
+                final lesionType = _lesionDataManager
+                    .findLesionTypeForDiagnosis(val);
+                if (lesionType != null) {
+                  _lesionTypes[_selectedImageIndex] = lesionType;
+                }
+              }
+              // If diagnosis is NULL, don't change lesion type
+            });
+
+            _isUpdating = false;
+          },
         ),
         const SizedBox(height: 16),
         Card(
           color: _lowQualityFlags[_selectedImageIndex]
               ? Colors.orange.withValues(alpha: 0.1)
               : Colors.grey.withValues(alpha: 0.05),
-          child: SwitchListTile(
-            title: const Text("Low Quality Image?"),
-            subtitle: const Text("Mark if image quality is poor"),
-            value: _lowQualityFlags[_selectedImageIndex],
-            onChanged: (val) {
-              setState(() => _lowQualityFlags[_selectedImageIndex] = val);
-            },
+          child: Column(
+            children: [
+              SwitchListTile(
+                title: const Text("Low Quality Image?"),
+                subtitle: const Text("Mark if image quality is poor"),
+                value: _lowQualityFlags[_selectedImageIndex],
+                onChanged: (val) {
+                  setState(() {
+                    _lowQualityFlags[_selectedImageIndex] = val;
+                    // Reset reason if unchecked
+                    if (!val) {
+                      _lowQualityReasons[_selectedImageIndex] = null;
+                    }
+                  });
+                },
+              ),
+              if (_lowQualityFlags[_selectedImageIndex])
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: DropdownButtonFormField<PoorQualityReason>(
+                    value: _lowQualityReasons[_selectedImageIndex],
+                    decoration: const InputDecoration(
+                      labelText: "Reason for Low Quality",
+                      border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    isExpanded: true,
+                    items: PoorQualityReason.values
+                        .map(
+                          (reason) => DropdownMenuItem(
+                            value: reason,
+                            child: Text(
+                              reason.name
+                                  .replaceAll('_', ' ')
+                                  .toLowerCase()
+                                  .split(' ')
+                                  .map((word) =>
+                                      word[0].toUpperCase() + word.substring(1))
+                                  .join(' '),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _lowQualityReasons[_selectedImageIndex] = val;
+                      });
+                    },
+                    validator: (val) {
+                      if (_lowQualityFlags[_selectedImageIndex] && val == null) {
+                        return "Please select a reason for low quality";
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
         FormField<void>(
           initialValue: null,
           validator: (_) {
+            final nullLesionKey = _lesionDataManager.nullLesionType.key;
+            final nullDiagnosisKey =
+                _lesionDataManager.nullClinicalDiagnosis.key;
+
             final missingLesion = _lesionTypes
                 .asMap()
                 .entries
-                .where((e) => e.value == LesionType.NULL)
+                .where((e) => e.value.key == nullLesionKey)
                 .map((e) => e.key + 1)
                 .toList();
             final missingDiag = _clinicalDiagnoses
                 .asMap()
                 .entries
-                .where((e) => e.value == ClinicalDiagnosis.NULL)
+                .where((e) => e.value.key == nullDiagnosisKey)
                 .map((e) => e.key + 1)
                 .toList();
 
@@ -767,6 +884,84 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
     );
   }
 
+  Widget _buildLesionTypeDropdown(
+    String label,
+    LesionTypeEnum value,
+    void Function(LesionTypeEnum) onChanged,
+  ) {
+    final allLesionTypes = _lesionDataManager.allLesionTypes;
+
+    return DropdownButtonFormField<LesionTypeEnum>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      isExpanded: true,
+      items: allLesionTypes
+          .map(
+            (lesionType) => DropdownMenuItem(
+              value: lesionType,
+              child: Text(lesionType.key),
+            ),
+          )
+          .toList(),
+      onChanged: (val) {
+        if (val != null) {
+          onChanged(val);
+        }
+      },
+      validator: (val) {
+        if (val == null || val.key == _lesionDataManager.nullLesionType.key) {
+          return "Select $label";
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildClinicalDiagnosisDropdown(
+    String label,
+    ClinicalDiagnosisEnum value,
+    LesionTypeEnum currentLesionType,
+    void Function(ClinicalDiagnosisEnum) onChanged,
+  ) {
+    final allDiagnoses = _lesionDataManager.allClinicalDiagnoses;
+    final validDiagnoses = _lesionDataManager.getClinicalDiagnosesForLesionType(
+      currentLesionType,
+    );
+    final validDiagnosisKeys = validDiagnoses.map((d) => d.key).toSet();
+
+    return DropdownButtonFormField<ClinicalDiagnosisEnum>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      isExpanded: true,
+      items: allDiagnoses.map((diagnosis) {
+        final isValid = validDiagnosisKeys.contains(diagnosis.key);
+        return DropdownMenuItem(
+          value: diagnosis,
+          child: Opacity(
+            opacity: isValid ? 1.0 : 0.4,
+            child: Text(
+              diagnosis.displayText,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: (val) {
+        if (val != null) {
+          onChanged(val);
+        }
+      },
+      validator: (val) {
+        if (val == null ||
+            val.key == _lesionDataManager.nullClinicalDiagnosis.key) {
+          return "Select $label";
+        }
+        return null;
+      },
+    );
+  }
+
   void _showImageZoomDialog(int imageIndex) {
     if (_images.isEmpty || imageIndex >= _images.length) return;
 
@@ -872,10 +1067,10 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
       });
 
       int firstMissingLesion = _lesionTypes.indexWhere(
-        (t) => t == LesionType.NULL,
+        (t) => t.key == _lesionDataManager.nullLesionType.key,
       );
       int firstMissingDiag = _clinicalDiagnoses.indexWhere(
-        (d) => d == ClinicalDiagnosis.NULL,
+        (d) => d.key == _lesionDataManager.nullClinicalDiagnosis.key,
       );
 
       int firstMissing = -1;
@@ -944,6 +1139,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           clinicalDiagnosis: _clinicalDiagnoses[index],
           lesionType: _lesionTypes[index],
           lowQuality: _lowQualityFlags[index],
+          lowQualityReason: _lowQualityReasons[index],
         ),
       );
 
@@ -1012,126 +1208,138 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Diagnose Case"), centerTitle: true),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 800;
-          final maxWidth = isWide ? 1200.0 : double.infinity;
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text("Loading case data..."),
+                ],
+              ),
+            )
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 800;
+                final maxWidth = isWide ? 1200.0 : double.infinity;
 
-          return Center(
-            child: Container(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: Form(
-                key: _formKey,
-                autovalidateMode: _autovalidateMode,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
-                        child: _buildDiagnosisForm(),
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, -2),
+                return Center(
+                  child: Container(
+                    constraints: BoxConstraints(maxWidth: maxWidth),
+                    child: Form(
+                      key: _formKey,
+                      autovalidateMode: _autovalidateMode,
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                              child: _buildDiagnosisForm(),
+                            ),
                           ),
-                        ],
-                      ),
-                      child: isWide
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    _confirmAction(
-                                      title: "Cancel Diagnosis",
-                                      message:
-                                          "Are you sure you want to cancel diagnosis? All progress will be lost.",
-                                      onConfirm: _cancelDiagnosis,
-                                    );
-                                  },
-                                  icon: const Icon(Icons.cancel),
-                                  label: const Text("Cancel Diagnosis"),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.grey,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 16,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    _confirmAction(
-                                      title: "Submit Diagnosis",
-                                      message:
-                                          "Are you sure you want to submit diagnosis?",
-                                      onConfirm: _submitDiagnosis,
-                                    );
-                                  },
-                                  icon: const Icon(Icons.check),
-                                  label: const Text("Submit Diagnosis"),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      _confirmAction(
-                                        title: "Cancel Diagnosis",
-                                        message:
-                                            "Are you sure you want to cancel diagnosis? All progress will be lost.",
-                                        onConfirm: _cancelDiagnosis,
-                                      );
-                                    },
-                                    icon: const Icon(Icons.cancel),
-                                    label: const Text("Cancel"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      _confirmAction(
-                                        title: "Submit Diagnosis",
-                                        message:
-                                            "Are you sure you want to submit diagnosis?",
-                                        onConfirm: _submitDiagnosis,
-                                      );
-                                    },
-                                    icon: const Icon(Icons.check),
-                                    label: const Text("Submit"),
-                                  ),
+                          Container(
+                            padding: EdgeInsets.all(isWide ? 24.0 : 16.0),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, -2),
                                 ),
                               ],
                             ),
+                            child: isWide
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          _confirmAction(
+                                            title: "Cancel Diagnosis",
+                                            message:
+                                                "Are you sure you want to cancel diagnosis? All progress will be lost.",
+                                            onConfirm: _cancelDiagnosis,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.cancel),
+                                        label: const Text("Cancel Diagnosis"),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 24,
+                                            vertical: 16,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          _confirmAction(
+                                            title: "Submit Diagnosis",
+                                            message:
+                                                "Are you sure you want to submit diagnosis?",
+                                            onConfirm: _submitDiagnosis,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.check),
+                                        label: const Text("Submit Diagnosis"),
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 24,
+                                            vertical: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () {
+                                            _confirmAction(
+                                              title: "Cancel Diagnosis",
+                                              message:
+                                                  "Are you sure you want to cancel diagnosis? All progress will be lost.",
+                                              onConfirm: _cancelDiagnosis,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.cancel),
+                                          label: const Text("Cancel"),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.grey,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () {
+                                            _confirmAction(
+                                              title: "Submit Diagnosis",
+                                              message:
+                                                  "Are you sure you want to submit diagnosis?",
+                                              onConfirm: _submitDiagnosis,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.check),
+                                          label: const Text("Submit"),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

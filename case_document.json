@@ -174,6 +174,7 @@
                     "clinical_diagnosis": "",
                     "lesion_type": "",
                     "low_quality": "",
+                    "low_quality_reason": "",
                     "timestamp": ""
                 }
             }
@@ -223,6 +224,7 @@
                     "clinical_diagnosis": "",
                     "lesion_type": "",
                     "low_quality": "",
+                    "low_quality_reason": "",
                     "timestamp": ""
                 }
             }

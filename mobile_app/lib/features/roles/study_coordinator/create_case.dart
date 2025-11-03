@@ -39,17 +39,21 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
   final _dobController = TextEditingController();
   final _ageController = TextEditingController();
   Gender? _gender;
-  final _ethnicityController = TextEditingController();
+  Ethnicity? _ethnicity;
+  final _ethnicityOthersController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   final _addressController = TextEditingController();
   final _attendingHospitalController = TextEditingController();
   File? _consentForm;
   Habit? _smoking;
   final _smokingDurationController = TextEditingController();
+  DurationUnit? _smokingDurationUnit;
   Habit? _betelQuid;
   final _betelQuidDurationController = TextEditingController();
+  DurationUnit? _betelQuidDurationUnit;
   Habit? _alcohol;
   final _alcoholDurationController = TextEditingController();
+  DurationUnit? _alcoholDurationUnit;
   final _lesionClinicalPresentationController = TextEditingController();
   final _chiefComplaintController = TextEditingController();
   final _presentingComplaintHistoryController = TextEditingController();
@@ -102,7 +106,24 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       }
 
       _gender = parseEnum<Gender>(Gender.values, draft['gender']);
-      _ethnicityController.text = draft['ethnicity'] ?? '';
+
+      // Parse ethnicity - check if it's an enum value or "OTHERS"
+      final ethnicityStr = draft['ethnicity'] ?? '';
+      final parsedEthnicity = parseEnum<Ethnicity>(
+        Ethnicity.values,
+        ethnicityStr,
+      );
+      if (parsedEthnicity != null) {
+        _ethnicity = parsedEthnicity;
+        if (parsedEthnicity == Ethnicity.OTHERS) {
+          _ethnicityOthersController.text = draft['ethnicityOthers'] ?? '';
+        }
+      } else if (ethnicityStr.isNotEmpty) {
+        // It's a custom ethnicity string, set to OTHERS
+        _ethnicity = Ethnicity.OTHERS;
+        _ethnicityOthersController.text = ethnicityStr;
+      }
+
       _phoneNumberController.text = draft['phoneNumber'] ?? '';
       _addressController.text = draft['address'] ?? '';
       _attendingHospitalController.text = draft['attendingHospital'] ?? '';
@@ -110,11 +131,23 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           ? File(draft['consentForm'])
           : null;
       _smoking = parseEnum<Habit>(Habit.values, draft['smoking']);
-      _smokingDurationController.text = draft['smokingDuration'] ?? '';
+      _parseDuration(
+        draft['smokingDuration'],
+        _smokingDurationController,
+        (unit) => _smokingDurationUnit = unit,
+      );
       _betelQuid = parseEnum<Habit>(Habit.values, draft['betelQuid']);
-      _betelQuidDurationController.text = draft['betelQuidDuration'] ?? '';
+      _parseDuration(
+        draft['betelQuidDuration'],
+        _betelQuidDurationController,
+        (unit) => _betelQuidDurationUnit = unit,
+      );
       _alcohol = parseEnum<Habit>(Habit.values, draft['alcohol']);
-      _alcoholDurationController.text = draft['alcoholDuration'] ?? '';
+      _parseDuration(
+        draft['alcoholDuration'],
+        _alcoholDurationController,
+        (unit) => _alcoholDurationUnit = unit,
+      );
       _lesionClinicalPresentationController.text =
           draft['lesionClinicalPresentation'] ?? '';
       _chiefComplaintController.text = draft['chiefComplaint'] ?? '';
@@ -142,6 +175,44 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       caseId = nanoid(length: 8);
       createdAt = DateTime.now();
     }
+  }
+
+  void _parseDuration(
+    String? durationStr,
+    TextEditingController controller,
+    Function(DurationUnit?) setUnit,
+  ) {
+    if (durationStr == null || durationStr.isEmpty) {
+      controller.text = '';
+      setUnit(null);
+      return;
+    }
+
+    // Parse format: "2 YEARS" into number and unit
+    final parts = durationStr.trim().split(' ');
+    if (parts.length >= 2) {
+      controller.text = parts[0];
+      final unitStr = parts.sublist(1).join(' ');
+      try {
+        final unit = DurationUnit.values.firstWhere(
+          (e) => e.name == unitStr,
+          orElse: () => DurationUnit.YEARS,
+        );
+        setUnit(unit);
+      } catch (_) {
+        setUnit(DurationUnit.YEARS);
+      }
+    } else {
+      controller.text = durationStr;
+      setUnit(null);
+    }
+  }
+
+  String _combineDuration(String number, DurationUnit? unit) {
+    if (number.isEmpty || unit == null) {
+      return '';
+    }
+    return '$number ${unit.name}';
   }
 
   void _deriveAndSetDobFromNric(String idNum) {
@@ -249,17 +320,31 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         'idNum': _idNumController.text,
         'dob': _dobController.text,
         'gender': _gender?.name,
-        'ethnicity': _ethnicityController.text,
+        'ethnicity': _ethnicity == Ethnicity.OTHERS
+            ? _ethnicityOthersController.text
+            : (_ethnicity?.name ?? ''),
+        'ethnicityOthers': _ethnicity == Ethnicity.OTHERS
+            ? _ethnicityOthersController.text
+            : '',
         'phoneNumber': _phoneNumberController.text,
         'address': _addressController.text,
         'attendingHospital': _attendingHospitalController.text,
         'consentForm': _consentForm?.path,
         'smoking': _smoking?.name,
-        'smokingDuration': _smokingDurationController.text,
+        'smokingDuration': _combineDuration(
+          _smokingDurationController.text,
+          _smokingDurationUnit,
+        ),
         'betelQuid': _betelQuid?.name,
-        'betelQuidDuration': _betelQuidDurationController.text,
+        'betelQuidDuration': _combineDuration(
+          _betelQuidDurationController.text,
+          _betelQuidDurationUnit,
+        ),
         'alcohol': _alcohol?.name,
-        'alcoholDuration': _alcoholDurationController.text,
+        'alcoholDuration': _combineDuration(
+          _alcoholDurationController.text,
+          _alcoholDurationUnit,
+        ),
         'lesionClinicalPresentation':
             _lesionClinicalPresentationController.text,
         'chiefComplaint': _chiefComplaintController.text,
@@ -399,11 +484,20 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         createdAt: createdAt,
         createdBy: userId,
         alcohol: _alcohol!,
-        alcoholDuration: _alcoholDurationController.text,
+        alcoholDuration: _combineDuration(
+          _alcoholDurationController.text,
+          _alcoholDurationUnit,
+        ),
         betelQuid: _betelQuid!,
-        betelQuidDuration: _betelQuidDurationController.text,
+        betelQuidDuration: _combineDuration(
+          _betelQuidDurationController.text,
+          _betelQuidDurationUnit,
+        ),
         smoking: _smoking!,
-        smokingDuration: _smokingDurationController.text,
+        smokingDuration: _combineDuration(
+          _smokingDurationController.text,
+          _smokingDurationUnit,
+        ),
         oralHygieneProductsUsed: _oralHygieneProductsUsed ?? false,
         oralHygieneProductTypeUsed: _oralHygieneProductTypeUsedController.text,
         slsContainingToothpaste: _slsContainingToothpaste ?? false,
@@ -419,7 +513,9 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
         chiefComplaint: _chiefComplaintController.text,
         consentForm: consentForm,
         dob: dob!,
-        ethnicity: _ethnicityController.text,
+        ethnicity: _ethnicity == Ethnicity.OTHERS
+            ? _ethnicityOthersController.text
+            : (_ethnicity?.name ?? ''),
         gender: _gender!,
         idNum: _idNumController.text,
         idType: _idType!,
@@ -1096,7 +1192,44 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
           (val) => setState(() => _gender = val),
         ),
         const SizedBox(height: 16),
-        _buildTextField(_ethnicityController, "Ethnicity"),
+        _buildDropdown<Ethnicity>("Ethnicity", _ethnicity, Ethnicity.values, (
+          val,
+        ) {
+          setState(() {
+            _ethnicity = val;
+            // Clear the others field if not OTHERS
+            if (val != Ethnicity.OTHERS) {
+              _ethnicityOthersController.clear();
+            }
+          });
+        }),
+        if (_ethnicity == Ethnicity.OTHERS) ...[
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _ethnicityOthersController,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r"[A-Za-z ]")),
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                return TextEditingValue(
+                  text: newValue.text.toUpperCase(),
+                  selection: newValue.selection,
+                );
+              }),
+            ],
+            decoration: const InputDecoration(
+              labelText: "Specify Ethnicity",
+              hintText: "Enter exact ethnicity",
+            ),
+            validator: (value) {
+              if (_ethnicity == Ethnicity.OTHERS &&
+                  (value == null || value.isEmpty)) {
+                return "Enter exact ethnicity";
+              }
+              return null;
+            },
+          ),
+        ],
         const SizedBox(height: 16),
         _buildTextField(
           _phoneNumberController,
@@ -1230,27 +1363,27 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
       title: 'Habits & Lifestyle',
       icon: Icons.smoking_rooms_outlined,
       children: [
+        _buildDropdown<Habit>("Smoking", _smoking, Habit.values, (val) {
+          setState(() {
+            _smoking = val;
+            if (val == Habit.NO) {
+              _smokingDurationController.clear();
+              _smokingDurationUnit = null;
+            }
+          });
+        }),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>("Smoking", _smoking, Habit.values, (
-                val,
-              ) {
-                setState(() {
-                  _smoking = val;
-                  if (val == Habit.NO) {
-                    _smokingDurationController.clear();
-                  }
-                });
-              }),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+              flex: 45,
               child: TextFormField(
                 controller: _smokingDurationController,
                 enabled: _smoking != Habit.NO,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: "Duration",
+                  labelText: "Duration (Number)",
                   disabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: Colors.grey.withValues(alpha: 0.3),
@@ -1260,39 +1393,72 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 validator: (value) {
                   if (_smoking != Habit.NO &&
                       (value == null || value.isEmpty)) {
-                    return "Enter Duration";
+                    return "Enter Number";
                   }
                   return null;
                 },
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 55,
+              child: IgnorePointer(
+                ignoring: _smoking == Habit.NO,
+                child: DropdownButtonFormField<DurationUnit>(
+                  value: _smokingDurationUnit,
+                  decoration: InputDecoration(
+                    labelText: "Duration Unit",
+                    filled: _smoking == Habit.NO,
+                    fillColor: _smoking == Habit.NO
+                        ? Colors.grey.withValues(alpha: 0.1)
+                        : null,
+                    disabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  items: DurationUnit.values
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
+                      .toList(),
+                  onChanged: _smoking != Habit.NO
+                      ? (val) => setState(() => _smokingDurationUnit = val)
+                      : null,
+                  validator: (val) {
+                    if (_smoking != Habit.NO && val == null) {
+                      return "Select Unit";
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
+        _buildDropdown<Habit>("Betel Quid", _betelQuid, Habit.values, (val) {
+          setState(() {
+            _betelQuid = val;
+            if (val == Habit.NO) {
+              _betelQuidDurationController.clear();
+              _betelQuidDurationUnit = null;
+            }
+          });
+        }),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>(
-                "Betel Quid",
-                _betelQuid,
-                Habit.values,
-                (val) {
-                  setState(() {
-                    _betelQuid = val;
-                    if (val == Habit.NO) {
-                      _betelQuidDurationController.clear();
-                    }
-                  });
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+              flex: 45,
               child: TextFormField(
                 controller: _betelQuidDurationController,
                 enabled: _betelQuid != Habit.NO,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: "Duration",
+                  labelText: "Duration (Number)",
                   disabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: Colors.grey.withValues(alpha: 0.3),
@@ -1302,36 +1468,72 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 validator: (value) {
                   if (_betelQuid != Habit.NO &&
                       (value == null || value.isEmpty)) {
-                    return "Enter Duration";
+                    return "Enter Number";
                   }
                   return null;
                 },
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 55,
+              child: IgnorePointer(
+                ignoring: _betelQuid == Habit.NO,
+                child: DropdownButtonFormField<DurationUnit>(
+                  value: _betelQuidDurationUnit,
+                  decoration: InputDecoration(
+                    labelText: "Duration Unit",
+                    filled: _betelQuid == Habit.NO,
+                    fillColor: _betelQuid == Habit.NO
+                        ? Colors.grey.withValues(alpha: 0.1)
+                        : null,
+                    disabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  items: DurationUnit.values
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
+                      .toList(),
+                  onChanged: _betelQuid != Habit.NO
+                      ? (val) => setState(() => _betelQuidDurationUnit = val)
+                      : null,
+                  validator: (val) {
+                    if (_betelQuid != Habit.NO && val == null) {
+                      return "Select Unit";
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
+        _buildDropdown<Habit>("Alcohol", _alcohol, Habit.values, (val) {
+          setState(() {
+            _alcohol = val;
+            if (val == Habit.NO) {
+              _alcoholDurationController.clear();
+              _alcoholDurationUnit = null;
+            }
+          });
+        }),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _buildDropdown<Habit>("Alcohol", _alcohol, Habit.values, (
-                val,
-              ) {
-                setState(() {
-                  _alcohol = val;
-                  if (val == Habit.NO) {
-                    _alcoholDurationController.clear();
-                  }
-                });
-              }),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
+              flex: 45,
               child: TextFormField(
                 controller: _alcoholDurationController,
                 enabled: _alcohol != Habit.NO,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText: "Duration",
+                  labelText: "Duration (Number)",
                   disabledBorder: OutlineInputBorder(
                     borderSide: BorderSide(
                       color: Colors.grey.withValues(alpha: 0.3),
@@ -1341,10 +1543,46 @@ class _CreateCaseScreenState extends State<CreateCaseScreen> {
                 validator: (value) {
                   if (_alcohol != Habit.NO &&
                       (value == null || value.isEmpty)) {
-                    return "Enter Duration";
+                    return "Enter Number";
                   }
                   return null;
                 },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 55,
+              child: IgnorePointer(
+                ignoring: _alcohol == Habit.NO,
+                child: DropdownButtonFormField<DurationUnit>(
+                  value: _alcoholDurationUnit,
+                  decoration: InputDecoration(
+                    labelText: "Duration Unit",
+                    filled: _alcohol == Habit.NO,
+                    fillColor: _alcohol == Habit.NO
+                        ? Colors.grey.withValues(alpha: 0.1)
+                        : null,
+                    disabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+                  items: DurationUnit.values
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
+                      .toList(),
+                  onChanged: _alcohol != Habit.NO
+                      ? (val) => setState(() => _alcoholDurationUnit = val)
+                      : null,
+                  validator: (val) {
+                    if (_alcohol != Habit.NO && val == null) {
+                      return "Select Unit";
+                    }
+                    return null;
+                  },
+                ),
               ),
             ),
           ],

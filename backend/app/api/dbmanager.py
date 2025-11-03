@@ -184,9 +184,10 @@ class DbManager:
 
             for clinician_id, diag_data in diag.items():
                 existing_diagnoses[idx][clinician_id] = {
-                    "clinical_diagnosis": diag_data.get("clinical_diagnosis", ""),
-                    "lesion_type": diag_data.get("lesion_type", ""),
+                    "clinical_diagnosis": diag_data.get("clinical_diagnosis", "NULL"),
+                    "lesion_type": diag_data.get("lesion_type", "NULL"),
                     "low_quality": diag_data.get("low_quality", False),
+                    "low_quality_reason": diag_data.get("low_quality_reason", "NULL"),
                     # "timestamp": firestore.SERVER_TIMESTAMP, # Commented because of exception
                 }
 
@@ -270,7 +271,7 @@ class DbManager:
         for case in cases:
             for diagnose in case.get("diagnoses", []):
                 for key, val in diagnose.items():
-                    if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality"]):
+                    if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality", "low_quality_reason"]):
                         uid = key
                         if uid not in clinician_mapping:
                             clinician_counter += 1
@@ -400,6 +401,7 @@ class DbManager:
                         row[f"{clinician}_lesion_type"] = "NULL"
                         row[f"{clinician}_clinical_diagnosis"] = "NULL"
                         row[f"{clinician}_low_quality"] = "NULL"
+                        row[f"{clinician}_low_quality_reason"] = "NULL"
                     rows.append(row)
             else:
                 for i, diagnose in enumerate(diagnoses):
@@ -420,10 +422,12 @@ class DbManager:
                             row[f"{clinician}_lesion_type"] = cdata.get("lesion_type", "NULL")
                             row[f"{clinician}_clinical_diagnosis"] = cdata.get("clinical_diagnosis", "NULL")
                             row[f"{clinician}_low_quality"] = cdata.get("low_quality", "NULL")
+                            row[f"{clinician}_low_quality_reason"] = cdata.get("low_quality_reason", "NULL")
                         else:
                             row[f"{clinician}_lesion_type"] = "NULL"
                             row[f"{clinician}_clinical_diagnosis"] = "NULL"
                             row[f"{clinician}_low_quality"] = "NULL"
+                            row[f"{clinician}_low_quality_reason"] = "NULL"
                     rows.append(row)
 
                     biopsy_report_obj = diagnose.get("biopsy_report", {

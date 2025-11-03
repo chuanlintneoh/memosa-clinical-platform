@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mobile_app/core/models/lesion_data.dart';
 import 'package:mobile_app/features/auth/auth_gate.dart';
 import 'package:mobile_app/features/auth/login_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
@@ -10,6 +11,11 @@ void main() async {
   await dotenv.load(fileName: ".env");
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Preload lesion data
+  final lesionDataManager = LesionDataManager();
+  await lesionDataManager.loadData();
+
   runApp(const MyApp());
 }
 
