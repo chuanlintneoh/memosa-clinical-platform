@@ -24,7 +24,7 @@
 14. /Resolved [ENHANCEMENT] Password for user registration, ideally different for user type and user (admin manage invite code screen)
 15. /Resolved [ENHANCEMENT] Suggest that there is a next button to move onto the next image among the nine images instead of checking the dropdown - AN (Replace submit button with next button when diagnosis of all images are incomplete)
 16. /Resolved [ENHANCEMENT] How would you search if you did not copy the case ID? - SC,AN (Show list of created case of the study coordinator, decrypt only when clicked)
-17. [ENHANCEMENT] Undiagnosed cases takes a long time to load (only decrypt the cases when a case is clicked for diagnose)
+17. /Resolved [ENHANCEMENT] Undiagnosed cases takes a long time to load (only decrypt the cases when a case is clicked for diagnose)
 18. [ENHANCEMENT] Notification mechanism to developer when AI inference service is down
 19. /Nofix [ENHANCEMENT] Is it possible to have save as draft for clinician diagnosis? - SC, AN
 20. /Nofix [ENHANCEMENT] Case submission and export bundle takes a while - AN

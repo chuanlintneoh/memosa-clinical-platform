@@ -298,22 +298,11 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
     ColorScheme colorScheme,
   ) {
     final caseId = caseInfo['case_id'] ?? 'Unknown Case ID';
-    final createdAt =
-        caseInfo['case_data']?.createdAt ?? 'Unknown Creation Date Time';
-    final age = caseInfo['case_data']?.age ?? '';
-    final gender = caseInfo['case_data']?.gender ?? '';
-    final ethnicity = caseInfo['case_data']?.ethnicity ?? '';
+    final submittedAt = caseInfo['submitted_at'] ?? 'Unknown';
 
-    // Build patient info string (Age, Gender, Ethnicity)
-    List<String> patientInfoParts = [];
-    if (age.isNotEmpty) patientInfoParts.add('$age yo');
-    if (gender.isNotEmpty) patientInfoParts.add(gender);
-    if (ethnicity.isNotEmpty) patientInfoParts.add(ethnicity);
-    final patientInfo = patientInfoParts.join(' • ');
-
-    String formattedDate = createdAt;
+    String formattedDate = submittedAt;
     try {
-      final dateTime = DateTime.parse(createdAt);
+      final dateTime = DateTime.parse(submittedAt);
       formattedDate =
           '${dateTime.day}/${dateTime.month}/${dateTime.year} '
           '${dateTime.hour.toString().padLeft(2, '0')}:'
@@ -360,18 +349,7 @@ class _UndiagnosedCasesScreenState extends State<UndiagnosedCasesScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (patientInfo.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        patientInfo,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Icon(

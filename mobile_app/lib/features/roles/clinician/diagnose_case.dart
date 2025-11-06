@@ -2,9 +2,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/models/lesion_data.dart';
 import 'package:mobile_app/core/services/dbmanager.dart';
+import 'package:mobile_app/core/services/storage.dart';
+import 'package:mobile_app/core/utils/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DiagnoseCaseScreen extends StatefulWidget {
@@ -22,7 +25,8 @@ class DiagnoseCaseScreen extends StatefulWidget {
 }
 
 class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
-  late final CaseRetrieveModel _caseData;
+  CaseRetrieveModel? _caseData;
+  Map<String, dynamic>? _processedCaseInfo;
 
   final TextEditingController _caseIdController = TextEditingController();
   final TextEditingController _createdAtController = TextEditingController();
@@ -91,55 +95,145 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
   }
 
   Future<void> _initializeLesionData() async {
-    await _lesionDataManager.loadData();
-    setState(() {
-      _lesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
-      _clinicalDiagnoses = List.filled(
-        9,
-        _lesionDataManager.nullClinicalDiagnosis,
-      );
-    });
-    _populateData();
-    setState(() {
-      _isLoading = false;
-    });
+    try {
+      await _lesionDataManager.loadData();
+      setState(() {
+        _lesionTypes = List.filled(9, _lesionDataManager.nullLesionType);
+        _clinicalDiagnoses = List.filled(
+          9,
+          _lesionDataManager.nullClinicalDiagnosis,
+        );
+      });
+
+      // Decrypt case data if encrypted
+      if (!mounted) return;
+      final processedData = await _processRawCaseData(widget.caseInfo);
+
+      if (!mounted) return;
+      setState(() {
+        _processedCaseInfo = processedData;
+        _caseData = processedData["case_data"];
+      });
+
+      _populateData();
+    } catch (e) {
+      // Show error to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error loading case: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _processRawCaseData(
+    Map<String, dynamic> rawCase,
+  ) async {
+    // This mimics what DbManagerService.searchCase does
+    // Download and decrypt the blob, then parse it into CaseRetrieveModel
+
+    Uint8List aes = Uint8List(0);
+    String blob = 'NULL';
+    String comments = 'NULL';
+
+    // Decrypt AES key
+    if (rawCase["encrypted_aes"] != null) {
+      if (rawCase["encrypted_aes"]["ciphertext"] != "NULL" &&
+          rawCase["encrypted_aes"]["iv"] != "NULL" &&
+          rawCase["encrypted_aes"]["salt"] != "NULL") {
+        final ciphertext = rawCase["encrypted_aes"]["ciphertext"];
+        final iv = rawCase["encrypted_aes"]["iv"];
+        final salt = rawCase["encrypted_aes"]["salt"];
+
+        // Use async ONLY for PBKDF2 (2-5s operation) to avoid UI freeze
+        aes = await CryptoUtils.decryptAESKeyWithPassphraseAsync(
+          ciphertext,
+          dotenv.env['PASSWORD'] ?? '',
+          salt,
+          iv,
+        );
+
+        // Download blob (network operation - must be async)
+        if (rawCase["encrypted_blob"] != null) {
+          if (rawCase["encrypted_blob"]["url"] != "NULL" &&
+              rawCase["encrypted_blob"]["iv"] != "NULL") {
+            final url = rawCase["encrypted_blob"]["url"];
+            final ivBlob = rawCase["encrypted_blob"]["iv"];
+            final encryptedBlob = await StorageService.download(url);
+
+            // Use SYNC for AES decryption (fast ~500ms, avoid isolate overhead)
+            blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
+          }
+        }
+
+        // Decrypt additional comments - use SYNC (fast operation)
+        if (rawCase["additional_comments"] != null) {
+          if (rawCase["additional_comments"]["ciphertext"] != "NULL" &&
+              rawCase["additional_comments"]["iv"] != "NULL") {
+            comments = CryptoUtils.decryptString(
+              rawCase["additional_comments"]["ciphertext"],
+              rawCase["additional_comments"]["iv"],
+              aes,
+            );
+          }
+        }
+      }
+    }
+
+    // Parse case data
+    final caseData = await CaseRetrieveModel.fromRawAsync(
+      rawCase: rawCase,
+      blob: blob,
+      comments: comments,
+    );
+
+    return {"case_id": rawCase["case_id"], "aes": aes, "case_data": caseData};
   }
 
   void _populateData() {
-    _caseData = widget.caseInfo["case_data"];
+    if (_caseData == null) return;
 
-    _caseIdController.text = widget.caseInfo["case_id"] ?? "";
-    _createdAtController.text = _caseData.createdAt;
-    _submittedAtController.text = _caseData.submittedAt;
-    _createdByController.text = _caseData.createdBy;
-    _ageController.text = _caseData.age;
-    _genderController.text = _caseData.gender;
-    _ethnicityController.text = _caseData.ethnicity;
-    _smokingController.text = _caseData.smoking.toShortString;
-    _smokingDurationController.text = _caseData.smokingDuration;
-    _betelQuidController.text = _caseData.betelQuid.toShortString;
-    _betelQuidDurationController.text = _caseData.betelQuidDuration;
-    _alcoholController.text = _caseData.alcohol.toShortString;
-    _alcoholDurationController.text = _caseData.alcoholDuration;
+    _caseIdController.text = _processedCaseInfo?["case_id"] ?? widget.caseInfo["case_id"] ?? "";
+    _createdAtController.text = _caseData!.createdAt;
+    _submittedAtController.text = _caseData!.submittedAt;
+    _createdByController.text = _caseData!.createdBy;
+    _ageController.text = _caseData!.age;
+    _genderController.text = _caseData!.gender;
+    _ethnicityController.text = _caseData!.ethnicity;
+    _smokingController.text = _caseData!.smoking.toShortString;
+    _smokingDurationController.text = _caseData!.smokingDuration;
+    _betelQuidController.text = _caseData!.betelQuid.toShortString;
+    _betelQuidDurationController.text = _caseData!.betelQuidDuration;
+    _alcoholController.text = _caseData!.alcohol.toShortString;
+    _alcoholDurationController.text = _caseData!.alcoholDuration;
     _lesionClinicalPresentationController.text =
-        _caseData.lesionClinicalPresentation;
-    _chiefComplaintController.text = _caseData.chiefComplaint;
+        _caseData!.lesionClinicalPresentation;
+    _chiefComplaintController.text = _caseData!.chiefComplaint;
     _presentingComplaintHistoryController.text =
-        _caseData.presentingComplaintHistory;
-    _medicationHistoryController.text = _caseData.medicationHistory;
-    _medicalHistoryController.text = _caseData.medicalHistory;
-    _slsContainingToothpasteController.text = _caseData.slsContainingToothpaste
+        _caseData!.presentingComplaintHistory;
+    _medicationHistoryController.text = _caseData!.medicationHistory;
+    _medicalHistoryController.text = _caseData!.medicalHistory;
+    _slsContainingToothpasteController.text = _caseData!.slsContainingToothpaste
         ? "YES"
         : "NO";
     _slsContainingToothpasteUsedController.text =
-        _caseData.slsContainingToothpasteUsed;
-    _oralHygieneProductsUsedController.text = _caseData.oralHygieneProductsUsed
+        _caseData!.slsContainingToothpasteUsed;
+    _oralHygieneProductsUsedController.text = _caseData!.oralHygieneProductsUsed
         ? "YES"
         : "NO";
     _oralHygieneProductTypeUsedController.text =
-        _caseData.oralHygieneProductTypeUsed;
-    _additionalCommentsController.text = _caseData.additionalComments;
-    _images = _caseData.images;
+        _caseData!.oralHygieneProductTypeUsed;
+    _additionalCommentsController.text = _caseData!.additionalComments;
+    _images = _caseData!.images;
   }
 
   @override

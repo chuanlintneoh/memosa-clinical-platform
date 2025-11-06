@@ -278,56 +278,17 @@ class DbManagerService {
 
       for (var rawCase in rawCases) {
         try {
-          var blob = "NULL";
-          String comments = "NULL";
-          Uint8List aes = Uint8List(0);
           final caseId = rawCase["case_id"] ?? "UNKNOWN";
 
-          if (rawCase["encrypted_aes"] != null) {
-            if (rawCase["encrypted_aes"]["ciphertext"] != "NULL" &&
-                rawCase["encrypted_aes"]["iv"] != "NULL" &&
-                rawCase["encrypted_aes"]["salt"] != "NULL") {
-              final ciphertext = rawCase["encrypted_aes"]["ciphertext"];
-              final iv = rawCase["encrypted_aes"]["iv"];
-              final salt = rawCase["encrypted_aes"]["salt"];
-
-              // Use synchronous PBKDF2 - isolate overhead makes async slower
-              aes = CryptoUtils.decryptAESKeyWithPassphrase(
-                ciphertext,
-                dotenv.env['PASSWORD'] ?? '',
-                salt,
-                iv,
-              );
-
-              if (rawCase["encrypted_blob"] != null &&
-                  rawCase["encrypted_blob"]["url"] != "NULL" &&
-                  rawCase["encrypted_blob"]["iv"] != "NULL") {
-                final url = rawCase["encrypted_blob"]["url"];
-                final ivBlob = rawCase["encrypted_blob"]["iv"];
-                final encryptedBlob = await StorageService.download(url);
-                blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
-              }
-
-              if (rawCase["additional_comments"] != null &&
-                  rawCase["additional_comments"]["ciphertext"] != "NULL" &&
-                  rawCase["additional_comments"]["iv"] != "NULL") {
-                comments = CryptoUtils.decryptString(
-                  rawCase["additional_comments"]["ciphertext"],
-                  rawCase["additional_comments"]["iv"],
-                  aes,
-                );
-              }
-            }
-          }
-
+          // Return only encrypted metadata - no decryption at this stage
           final caseResult = {
             "case_id": caseId,
-            "aes": aes,
-            "case_data": CaseRetrieveModel.fromRaw(
-              rawCase: rawCase,
-              blob: blob,
-              comments: comments,
-            ),
+            "submitted_at": rawCase["submitted_at"],
+            "encrypted_aes": rawCase["encrypted_aes"],
+            "encrypted_blob": rawCase["encrypted_blob"],
+            "additional_comments": rawCase["additional_comments"],
+            "created_by_id": rawCase["created_by_id"],
+            "patient_id": rawCase["patient_id"],
           };
           results.add(caseResult);
 
@@ -335,7 +296,7 @@ class DbManagerService {
           onCaseProcessed?.call(caseResult);
         } catch (e) {
           final errorResult = {
-            "error": "Exception during case decryption: $e",
+            "error": "Exception during case metadata retrieval: $e",
             "raw_case": rawCase,
           };
           results.add(errorResult);
