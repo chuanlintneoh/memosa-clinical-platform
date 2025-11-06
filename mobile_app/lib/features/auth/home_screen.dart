@@ -51,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case "study_coordinator":
         return [
           _buildNavButton(Icons.drafts, "Draft Cases"),
+          _buildNavButton(Icons.list, "Browse Cases"),
           _buildNavButton(Icons.edit, "Edit Case"),
         ];
       case "clinician":
@@ -81,6 +82,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DraftCasesScreen()),
+                );
+                break;
+              case "Browse Cases":
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CasesListScreen()),
                 );
                 break;
               case "Edit Case":
@@ -156,6 +163,12 @@ class _HomeScreenState extends State<HomeScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const DraftCasesScreen()),
+            );
+          }),
+          _buildQuickAction(Icons.list, "Browse Cases", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CasesListScreen()),
             );
           }),
           _buildQuickAction(Icons.edit, "Search & Edit Case", () {

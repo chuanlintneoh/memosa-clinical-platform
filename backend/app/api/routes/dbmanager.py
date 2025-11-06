@@ -61,10 +61,57 @@ async def edit_case(
     _, role, _, _ = verify_token(request)
     if role != "study_coordinator":
         return JSONResponse(content={"error": "Unauthorized"}, status_code=403)
-    
+
     updates = await request.json()
     background_tasks.add_task(dbmanager.edit_case_by_id, case_id, updates)
     return JSONResponse(content={"case_id": case_id}, status_code=200)
+
+@dbmanager_router.get("/cases/list")
+def list_cases(
+    request: Request,
+    date_range: str = Query(None),
+    custom_start: str = Query(None),
+    custom_end: str = Query(None),
+    created_by_me: bool = Query(False),
+    limit: int = Query(5),
+    start_after_id: str = Query(None)
+):
+    """
+    Get a paginated list of cases with optional filters.
+
+    Query Parameters:
+        - date_range: Optional - "today", "this_week", "this_month", or "custom"
+        - custom_start: Optional - ISO date string (YYYY-MM-DD) for custom range start
+        - custom_end: Optional - ISO date string (YYYY-MM-DD) for custom range end
+        - created_by_me: Optional boolean - if True, filter to only cases created by current user (default: False)
+        - limit: Optional int - number of cases to return
+        - start_after_id: Optional string - case ID to start after for pagination
+
+    Returns:
+        {
+            "cases": [...],
+            "next_cursor": "case_id" or null,
+            "has_more": boolean
+        }
+    """
+    uid, role, _, _ = verify_token(request)
+    if role != "study_coordinator":
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=403)
+
+    try:
+        result = dbmanager.get_cases_list(
+            current_user_uid=uid,
+            date_range=date_range,
+            custom_start=custom_start,
+            custom_end=custom_end,
+            created_by_me=created_by_me,
+            limit=limit,
+            start_after_id=start_after_id
+        )
+        return JSONResponse(content=result, status_code=200)
+    except Exception as e:
+        print(f"[DbManager Routes] Error listing cases: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @dbmanager_router.get("/cases/undiagnosed/{clinician_id}")
 def get_undiagnosed_cases(clinician_id: str, request: Request):

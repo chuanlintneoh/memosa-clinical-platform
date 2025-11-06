@@ -106,10 +106,36 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
   final ImagePicker _picker = ImagePicker();
   final LesionDataManager _lesionDataManager = LesionDataManager();
 
+  bool _hasCheckedArguments = false;
+
   @override
   void initState() {
     super.initState();
     _initializeLesionData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Check for navigation arguments (case data from cases_list screen)
+    if (!_hasCheckedArguments) {
+      _hasCheckedArguments = true;
+      final args = ModalRoute.of(context)?.settings.arguments;
+
+      if (args != null && args is Map<String, dynamic>) {
+        // Case data was passed from cases_list screen
+        final caseId = args['case_id'] as String?;
+        if (caseId != null && caseId.isNotEmpty) {
+          // Auto-populate the search field and trigger search
+          _searchController.text = caseId;
+          // Delay the search to ensure the widget is fully built
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _searchCase();
+          });
+        }
+      }
+    }
   }
 
   Future<void> _initializeLesionData() async {

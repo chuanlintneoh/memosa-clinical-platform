@@ -5,6 +5,7 @@ import 'package:mobile_app/core/models/lesion_data.dart';
 import 'package:mobile_app/features/auth/auth_gate.dart';
 import 'package:mobile_app/features/auth/login_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
+import 'package:mobile_app/features/roles/study_coordinator/edit_case.dart';
 import 'package:mobile_app/firebase_options.dart';
 
 void main() async {
@@ -36,6 +37,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const AuthGate(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/study_coordinator/edit_case': (context) => const EditCaseScreen(),
       },
     );
   }

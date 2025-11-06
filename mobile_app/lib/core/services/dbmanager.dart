@@ -199,6 +199,57 @@ class DbManagerService {
     }
   }
 
+  static Future<Map<String, dynamic>> listCases({
+    String? dateRange,
+    String? customStart,
+    String? customEnd,
+    bool createdByMe = false,
+    int limit = 20,
+    String? startAfterId,
+  }) async {
+    // Study coordinator lists cases with filters
+    try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
+      // Build query parameters
+      final queryParams = <String, String>{
+        'created_by_me': createdByMe.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (dateRange != null) {
+        queryParams['date_range'] = dateRange;
+      }
+      if (customStart != null) {
+        queryParams['custom_start'] = customStart;
+      }
+      if (customEnd != null) {
+        queryParams['custom_end'] = customEnd;
+      }
+      if (startAfterId != null) {
+        queryParams['start_after_id'] = startAfterId;
+      }
+
+      final url = Uri.parse("$_baseUrl/cases/list").replace(queryParameters: queryParams);
+      final response = await http.get(url, headers: {'Authorization': idToken});
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        // Returns: { cases: [...], next_cursor: "...", has_more: bool }
+        return responseData;
+      } else {
+        throw Exception("Failed to list cases: ${response.body}");
+      }
+    } catch (e) {
+      throw Exception("Exception during case listing: $e");
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getUndiagnosedCases({
     required String clinicianID,
     Function(Map<String, dynamic>)? onCaseProcessed,
