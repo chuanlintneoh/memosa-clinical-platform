@@ -4,8 +4,11 @@ from typing import Any, Dict
 import base64
 import requests
 import time
+import logging
 
 from app.core.config import AI_URL
+
+logger = logging.getLogger(__name__)
 
 class AIQueue:
     def __init__(
@@ -89,7 +92,7 @@ class AIQueue:
                 break
             except Exception as e:
                 last_error = e
-                print(f"[AIQueue] Inference attempt {attempt + 1} failed: {e}")
+                logger.error(f"AI inference attempt {attempt + 1} failed: {e}", extra={"service": "ai_inference", "attempt": attempt + 1})
 
                 # If not the last attempt, wait with exponential backoff
                 if attempt < self._max_retries - 1:
@@ -99,8 +102,11 @@ class AIQueue:
 
         # If all retries failed, use NULL fallback values
         if predictions is None:
-            print(f"[AIQueue] All {self._max_retries} inference attempts failed. Last error: {last_error}")
-            print(f"[AIQueue] Proceeding with NULL fallback values for {len(flush_data)} cases")
+            logger.error(
+                f"AI inference service DOWN - all {self._max_retries} retries failed. Last error: {last_error}. "
+                f"Proceeding with NULL fallback values for {len(flush_data)} cases",
+                extra={"service": "ai_inference", "status": "service_down", "total_retries": self._max_retries, "error": str(last_error)}
+            )
 
             # Create NULL predictions for all images
             total_images = len(all_images)
