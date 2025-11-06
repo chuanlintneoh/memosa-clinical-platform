@@ -10,9 +10,9 @@ import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 
 class DbManagerService {
-  static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
-  // static final String _baseUrl =
-  //     "${dotenv.env['BACKEND_SERVER_URL']}/dbmanager";
+  // static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
+  static final String _baseUrl =
+      "${dotenv.env['BACKEND_SERVER_URL']}/dbmanager";
 
   static Future<String?> createCase({
     required String caseId,
@@ -158,11 +158,7 @@ class DbManagerService {
         comments: comments,
       );
 
-      return {
-        "case_id": caseId,
-        "aes": aes,
-        "case_data": caseData,
-      };
+      return {"case_id": caseId, "aes": aes, "case_data": caseData};
     } catch (e) {
       throw Exception("Exception during case search: $e");
     }
@@ -236,7 +232,9 @@ class DbManagerService {
         queryParams['start_after_id'] = startAfterId;
       }
 
-      final url = Uri.parse("$_baseUrl/cases/list").replace(queryParameters: queryParams);
+      final url = Uri.parse(
+        "$_baseUrl/cases/list",
+      ).replace(queryParameters: queryParams);
       final response = await http.get(url, headers: {'Authorization': idToken});
 
       if (response.statusCode == 200) {

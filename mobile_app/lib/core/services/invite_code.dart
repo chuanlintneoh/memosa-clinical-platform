@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_app/core/services/auth.dart';
 
 class InviteCodeService {
-  static const String _baseUrl = "http://10.0.2.2:8000/invite-codes";
+  // static const String _baseUrl = "http://10.0.2.2:8000/invite-codes";
+  static final String _baseUrl =
+      "${dotenv.env['BACKEND_SERVER_URL']}/invite-codes";
 
   /// Generate a new invite code (Admin only)
   static Future<Map<String, dynamic>> generateInviteCode({
@@ -31,17 +34,16 @@ class InviteCodeService {
 
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token,
-        },
+        headers: {'Content-Type': 'application/json', 'Authorization': token},
         body: jsonEncode(body),
       );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else if (response.statusCode == 403) {
-        throw Exception("Access denied. Only admins can generate invite codes.");
+        throw Exception(
+          "Access denied. Only admins can generate invite codes.",
+        );
       } else {
         final error = jsonDecode(response.body);
         throw Exception(error['detail'] ?? "Failed to generate invite code");
@@ -57,12 +59,7 @@ class InviteCodeService {
       final token = await AuthService.authorize();
       final url = Uri.parse("$_baseUrl/list");
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': token,
-        },
-      );
+      final response = await http.get(url, headers: {'Authorization': token});
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -83,12 +80,7 @@ class InviteCodeService {
       final token = await AuthService.authorize();
       final url = Uri.parse("$_baseUrl/list/all");
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': token,
-        },
-      );
+      final response = await http.get(url, headers: {'Authorization': token});
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -111,10 +103,7 @@ class InviteCodeService {
 
       final response = await http.post(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token,
-        },
+        headers: {'Content-Type': 'application/json', 'Authorization': token},
         body: jsonEncode({"code": code}),
       );
 
@@ -139,12 +128,7 @@ class InviteCodeService {
       final token = await AuthService.authorize();
       final url = Uri.parse("$_baseUrl/$code");
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': token,
-        },
-      );
+      final response = await http.get(url, headers: {'Authorization': token});
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
