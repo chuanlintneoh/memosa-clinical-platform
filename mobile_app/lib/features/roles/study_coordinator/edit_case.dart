@@ -1,10 +1,12 @@
 // Search and edit / add ground truth for existing case in database
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/core/models/case.dart';
 import 'package:mobile_app/core/models/lesion_data.dart';
@@ -124,18 +126,125 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       final args = ModalRoute.of(context)?.settings.arguments;
 
       if (args != null && args is Map<String, dynamic>) {
-        // Case data was passed from cases_list screen
         final caseId = args['case_id'] as String?;
-        if (caseId != null && caseId.isNotEmpty) {
-          // Auto-populate the search field and trigger search
+        final encryptedBlob = args['encrypted_blob'];
+        final encryptedAes = args['encrypted_aes'];
+
+        // Check if we have complete case data with encrypted blob URLs
+        if (caseId != null &&
+            caseId.isNotEmpty &&
+            encryptedBlob != null &&
+            encryptedAes != null) {
+          // Complete case data was passed - process it without API call
           _searchController.text = caseId;
-          // Delay the search to ensure the widget is fully built
+
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            setState(() {
+              _isLoading = true;
+              _errorMessage = null;
+            });
+
+            try {
+              // Ensure lesion data is loaded before populating
+              await _lesionDataManager.loadData();
+
+              if (!mounted) return;
+
+              // Process the raw case data (decrypt blob and parse)
+              final processedResult = await _processRawCaseData(args);
+
+              if (!mounted) return;
+
+              setState(() {
+                _searchResult = processedResult;
+                _errorMessage = null;
+              });
+              _populateData();
+            } catch (e) {
+              if (!mounted) return;
+              setState(() {
+                _errorMessage = e.toString();
+                _searchResult = null;
+              });
+            } finally {
+              if (mounted) {
+                setState(() => _isLoading = false);
+              }
+            }
+          });
+        } else if (caseId != null && caseId.isNotEmpty) {
+          // Only case_id was passed - use existing search flow
+          _searchController.text = caseId;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _searchCase();
           });
         }
       }
     }
+  }
+
+  Future<Map<String, dynamic>> _processRawCaseData(
+    Map<String, dynamic> rawCase,
+  ) async {
+    // This mimics what DbManagerService.searchCase does
+    // Download and decrypt the blob, then parse it into CaseRetrieveModel
+
+    Uint8List aes = Uint8List(0);
+    String blob = 'NULL';
+    String comments = 'NULL';
+
+    // Decrypt AES key
+    if (rawCase["encrypted_aes"] != null) {
+      if (rawCase["encrypted_aes"]["ciphertext"] != "NULL" &&
+          rawCase["encrypted_aes"]["iv"] != "NULL" &&
+          rawCase["encrypted_aes"]["salt"] != "NULL") {
+        final ciphertext = rawCase["encrypted_aes"]["ciphertext"];
+        final iv = rawCase["encrypted_aes"]["iv"];
+        final salt = rawCase["encrypted_aes"]["salt"];
+
+        // Use async ONLY for PBKDF2 (2-5s operation) to avoid UI freeze
+        aes = await CryptoUtils.decryptAESKeyWithPassphraseAsync(
+          ciphertext,
+          dotenv.env['PASSWORD'] ?? '',
+          salt,
+          iv,
+        );
+
+        // Download blob (network operation - must be async)
+        if (rawCase["encrypted_blob"] != null) {
+          if (rawCase["encrypted_blob"]["url"] != "NULL" &&
+              rawCase["encrypted_blob"]["iv"] != "NULL") {
+            final url = rawCase["encrypted_blob"]["url"];
+            final ivBlob = rawCase["encrypted_blob"]["iv"];
+            final encryptedBlob = await StorageService.download(url);
+
+            // Use SYNC for AES decryption (fast ~500ms, avoid isolate overhead)
+            blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
+          }
+        }
+
+        // Decrypt additional comments - use SYNC (fast operation)
+        if (rawCase["additional_comments"] != null) {
+          if (rawCase["additional_comments"]["ciphertext"] != "NULL" &&
+              rawCase["additional_comments"]["iv"] != "NULL") {
+            comments = CryptoUtils.decryptString(
+              rawCase["additional_comments"]["ciphertext"],
+              rawCase["additional_comments"]["iv"],
+              aes,
+            );
+          }
+        }
+      }
+    }
+
+    // Parse case data
+    final caseData = await CaseRetrieveModel.fromRawAsync(
+      rawCase: rawCase,
+      blob: blob,
+      comments: comments,
+    );
+
+    return {"case_id": rawCase["case_id"], "aes": aes, "case_data": caseData};
   }
 
   Future<void> _initializeLesionData() async {
@@ -737,7 +846,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                     ),
                   ),
                   items: DurationUnit.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
                       .toList(),
                   onChanged: _smoking != Habit.NO
                       ? (val) => setState(() => _smokingDurationUnit = val)
@@ -797,7 +908,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                     ),
                   ),
                   items: DurationUnit.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
                       .toList(),
                   onChanged: _betelQuid != Habit.NO
                       ? (val) => setState(() => _betelQuidDurationUnit = val)
@@ -857,7 +970,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                     ),
                   ),
                   items: DurationUnit.values
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name)),
+                      )
                       .toList(),
                   onChanged: _alcohol != Habit.NO
                       ? (val) => setState(() => _alcoholDurationUnit = val)

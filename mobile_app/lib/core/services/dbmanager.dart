@@ -118,6 +118,7 @@ class DbManagerService {
           final salt = rawCase["encrypted_aes"]["salt"];
 
           // Run PBKDF2 key derivation in background isolate (2-5s operation)
+          // This is the ONLY operation slow enough to justify isolate overhead
           aes = await CryptoUtils.decryptAESKeyWithPassphraseAsync(
             ciphertext,
             dotenv.env['PASSWORD'] ?? '',
@@ -132,15 +133,15 @@ class DbManagerService {
               final ivBlob = rawCase["encrypted_blob"]["iv"];
               final encryptedBlob = await StorageService.download(url);
 
-              // Run AES decryption in background isolate (1-2s operation)
-              blob = await CryptoUtils.decryptStringAsync(encryptedBlob, ivBlob, aes);
+              // Use SYNC decryption - fast (~500ms), avoid 100ms isolate overhead
+              blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
             }
           }
           if (rawCase["additional_comments"] != null) {
             if (rawCase["additional_comments"]["ciphertext"] != "NULL" &&
                 rawCase["additional_comments"]["iv"] != "NULL") {
-              // Run comments decryption in background isolate
-              comments = await CryptoUtils.decryptStringAsync(
+              // Use SYNC decryption - very fast (~50ms)
+              comments = CryptoUtils.decryptString(
                 rawCase["additional_comments"]["ciphertext"],
                 rawCase["additional_comments"]["iv"],
                 aes,
