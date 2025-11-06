@@ -33,12 +33,14 @@ class RegisterUser {
   final String email;
   final String password;
   final UserRole role;
+  final String inviteCode;
 
   RegisterUser({
     required this.fullName,
     required this.email,
     required this.password,
     required this.role,
+    required this.inviteCode,
   });
 
   Map<String, dynamic> toJson() {
@@ -47,6 +49,7 @@ class RegisterUser {
       'email': email,
       'password': password,
       'role': role.toApiValue(),
+      'invite_code': inviteCode,
     };
     return data;
   }

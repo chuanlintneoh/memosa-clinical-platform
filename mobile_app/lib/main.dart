@@ -1,15 +1,22 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mobile_app/core/models/lesion_data.dart';
 import 'package:mobile_app/features/auth/auth_gate.dart';
 import 'package:mobile_app/features/auth/login_screen.dart';
 import 'package:mobile_app/features/auth/register_screen.dart';
+import 'package:mobile_app/features/roles/study_coordinator/edit_case.dart';
 import 'package:mobile_app/firebase_options.dart';
 
 void main() async {
   await dotenv.load(fileName: ".env");
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Preload lesion data
+  final lesionDataManager = LesionDataManager();
+  await lesionDataManager.loadData();
+
   runApp(const MyApp());
 }
 
@@ -30,6 +37,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const AuthGate(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/study_coordinator/edit_case': (context) => const EditCaseScreen(),
       },
     );
   }

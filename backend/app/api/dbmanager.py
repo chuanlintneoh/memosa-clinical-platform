@@ -140,6 +140,137 @@ class DbManager:
         print(f"[DbManager] Case {case_id} not found in Firestore.")
         return None
 
+    def get_cases_list(
+        self,
+        current_user_uid: str,
+        date_range: Optional[str] = None,
+        custom_start: Optional[str] = None,
+        custom_end: Optional[str] = None,
+        created_by_me: bool = False,
+        limit: int = 5,
+        start_after_id: Optional[str] = None
+    ):
+        """
+        Get a paginated list of cases with filters.
+
+        Args:
+            current_user_uid: UID of the requesting user
+            date_range: "today", "this_week", "this_month", or "custom"
+            custom_start: ISO date string for custom range start (YYYY-MM-DD)
+            custom_end: ISO date string for custom range end (YYYY-MM-DD)
+            created_by_me: If True, filter to only cases created by current user
+            limit: Number of cases to return
+            start_after_id: Case ID to start after for pagination
+
+        Returns:
+            Dict with keys: cases (list), next_cursor (str or None), has_more (bool)
+        """
+        print(f"[DbManager] Getting cases list for user {current_user_uid}...")
+        print(f"[DbManager] Filters: date_range={date_range}, created_by_me={created_by_me}, limit={limit}, start_after_id={start_after_id}")
+
+        # Build base query
+        query = db.collection("cases")
+
+        # Filter by created_by if requested
+        if created_by_me:
+            query = query.where("created_by", "==", current_user_uid)
+            print(f"[DbManager] Filtering cases created by {current_user_uid}")
+
+        # Filter by date range if provided
+        if date_range:
+            now = datetime.now()
+            start_date = None
+            end_date = None
+
+            if date_range == "today":
+                start_date = datetime(now.year, now.month, now.day, 0, 0, 0)
+                end_date = datetime(now.year, now.month, now.day, 23, 59, 59)
+                print(f"[DbManager] Filtering for today: {start_date} to {end_date}")
+
+            elif date_range == "this_week":
+                # Get start of week (Monday)
+                days_since_monday = now.weekday()
+                start_date = datetime(now.year, now.month, now.day, 0, 0, 0) - timedelta(days=days_since_monday)
+                end_date = start_date + timedelta(days=7) - timedelta(seconds=1)
+                print(f"[DbManager] Filtering for this week: {start_date} to {end_date}")
+
+            elif date_range == "this_month":
+                start_date = datetime(now.year, now.month, 1, 0, 0, 0)
+                # Get last day of month
+                if now.month == 12:
+                    end_date = datetime(now.year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
+                else:
+                    end_date = datetime(now.year, now.month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
+                print(f"[DbManager] Filtering for this month: {start_date} to {end_date}")
+
+            elif date_range == "custom":
+                if custom_start and custom_end:
+                    try:
+                        start_date = datetime.fromisoformat(custom_start.replace('Z', '+00:00'))
+                        end_date = datetime.fromisoformat(custom_end.replace('Z', '+00:00'))
+                        # Set time to end of day for end_date
+                        end_date = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59)
+                        print(f"[DbManager] Filtering for custom range: {start_date} to {end_date}")
+                    except Exception as e:
+                        print(f"[DbManager] Error parsing custom dates: {e}")
+                        start_date = None
+                        end_date = None
+
+            # Apply date filters to query
+            if start_date:
+                query = query.where("submitted_at", ">=", start_date)
+            if end_date:
+                query = query.where("submitted_at", "<=", end_date)
+
+        # Order by submitted_at descending (most recent first)
+        query = query.order_by("submitted_at", direction=firestore.Query.DESCENDING)
+
+        # Handle pagination cursor
+        if start_after_id:
+            # Get the document to start after
+            start_after_doc = db.collection("cases").document(start_after_id).get()
+            if start_after_doc.exists:
+                query = query.start_after(start_after_doc)
+                print(f"[DbManager] Starting after case {start_after_id}")
+
+        # Apply limit (fetch limit + 1 to check if there are more)
+        query = query.limit(limit + 1)
+
+        # Execute query
+        docs = query.stream()
+
+        # Process results
+        cases = []
+        for doc in docs:
+            case_data = doc.to_dict()
+            case_data["case_id"] = doc.id
+
+            # Convert Firestore timestamps to ISO strings for JSON serialization
+            if "submitted_at" in case_data and case_data["submitted_at"]:
+                case_data["submitted_at"] = case_data["submitted_at"].isoformat()
+            if "created_at" in case_data and case_data["created_at"]:
+                # Handle both datetime and string formats
+                if hasattr(case_data["created_at"], "isoformat"):
+                    case_data["created_at"] = case_data["created_at"].isoformat()
+
+            cases.append(case_data)
+
+        # Determine if there are more results
+        has_more = len(cases) > limit
+        if has_more:
+            cases = cases[:limit]  # Remove the extra document
+
+        # Get next cursor (ID of last case in current page)
+        next_cursor = cases[-1]["case_id"] if cases and has_more else None
+
+        print(f"[DbManager] Retrieved {len(cases)} cases. Has more: {has_more}, Next cursor: {next_cursor}")
+
+        return {
+            "cases": cases,
+            "next_cursor": next_cursor,
+            "has_more": has_more
+        }
+
     def edit_case_by_id(self, case_id: str, updates: Dict[str, Any]):
         db.collection("cases").document(case_id).update(updates)
         print(f"[DbManager] Updated case {case_id}.")
@@ -184,9 +315,10 @@ class DbManager:
 
             for clinician_id, diag_data in diag.items():
                 existing_diagnoses[idx][clinician_id] = {
-                    "clinical_diagnosis": diag_data.get("clinical_diagnosis", ""),
-                    "lesion_type": diag_data.get("lesion_type", ""),
+                    "clinical_diagnosis": diag_data.get("clinical_diagnosis", "NULL"),
+                    "lesion_type": diag_data.get("lesion_type", "NULL"),
                     "low_quality": diag_data.get("low_quality", False),
+                    "low_quality_reason": diag_data.get("low_quality_reason", "NULL"),
                     # "timestamp": firestore.SERVER_TIMESTAMP, # Commented because of exception
                 }
 
@@ -270,7 +402,7 @@ class DbManager:
         for case in cases:
             for diagnose in case.get("diagnoses", []):
                 for key, val in diagnose.items():
-                    if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality"]):
+                    if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality", "low_quality_reason"]):
                         uid = key
                         if uid not in clinician_mapping:
                             clinician_counter += 1
@@ -400,6 +532,7 @@ class DbManager:
                         row[f"{clinician}_lesion_type"] = "NULL"
                         row[f"{clinician}_clinical_diagnosis"] = "NULL"
                         row[f"{clinician}_low_quality"] = "NULL"
+                        row[f"{clinician}_low_quality_reason"] = "NULL"
                     rows.append(row)
             else:
                 for i, diagnose in enumerate(diagnoses):
@@ -420,10 +553,12 @@ class DbManager:
                             row[f"{clinician}_lesion_type"] = cdata.get("lesion_type", "NULL")
                             row[f"{clinician}_clinical_diagnosis"] = cdata.get("clinical_diagnosis", "NULL")
                             row[f"{clinician}_low_quality"] = cdata.get("low_quality", "NULL")
+                            row[f"{clinician}_low_quality_reason"] = cdata.get("low_quality_reason", "NULL")
                         else:
                             row[f"{clinician}_lesion_type"] = "NULL"
                             row[f"{clinician}_clinical_diagnosis"] = "NULL"
                             row[f"{clinician}_low_quality"] = "NULL"
+                            row[f"{clinician}_low_quality_reason"] = "NULL"
                     rows.append(row)
 
                     biopsy_report_obj = diagnose.get("biopsy_report", {

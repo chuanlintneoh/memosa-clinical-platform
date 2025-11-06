@@ -10,9 +10,9 @@ import 'package:mobile_app/core/services/storage.dart';
 import 'package:mobile_app/core/utils/crypto.dart';
 
 class DbManagerService {
-  // static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
-  static final String _baseUrl =
-      "${dotenv.env['BACKEND_SERVER_URL']}/dbmanager";
+  static const String _baseUrl = "http://10.0.2.2:8000/dbmanager";
+  // static final String _baseUrl =
+  //     "${dotenv.env['BACKEND_SERVER_URL']}/dbmanager";
 
   static Future<String?> createCase({
     required String caseId,
@@ -116,24 +116,31 @@ class DbManagerService {
           final ciphertext = rawCase["encrypted_aes"]["ciphertext"];
           final iv = rawCase["encrypted_aes"]["iv"];
           final salt = rawCase["encrypted_aes"]["salt"];
-          aes = CryptoUtils.decryptAESKeyWithPassphrase(
+
+          // Run PBKDF2 key derivation in background isolate (2-5s operation)
+          // This is the ONLY operation slow enough to justify isolate overhead
+          aes = await CryptoUtils.decryptAESKeyWithPassphraseAsync(
             ciphertext,
             dotenv.env['PASSWORD'] ?? '',
             salt,
             iv,
           );
+
           if (rawCase["encrypted_blob"] != null) {
             if (rawCase["encrypted_blob"]["url"] != "NULL" &&
                 rawCase["encrypted_blob"]["iv"] != "NULL") {
               final url = rawCase["encrypted_blob"]["url"];
               final ivBlob = rawCase["encrypted_blob"]["iv"];
               final encryptedBlob = await StorageService.download(url);
+
+              // Use SYNC decryption - fast (~500ms), avoid 100ms isolate overhead
               blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
             }
           }
           if (rawCase["additional_comments"] != null) {
             if (rawCase["additional_comments"]["ciphertext"] != "NULL" &&
                 rawCase["additional_comments"]["iv"] != "NULL") {
+              // Use SYNC decryption - very fast (~50ms)
               comments = CryptoUtils.decryptString(
                 rawCase["additional_comments"]["ciphertext"],
                 rawCase["additional_comments"]["iv"],
@@ -144,14 +151,17 @@ class DbManagerService {
         }
       }
 
+      // Run case parsing (JSON + base64 image decoding) in background isolate (500ms-1s)
+      final caseData = await CaseRetrieveModel.fromRawAsync(
+        rawCase: rawCase,
+        blob: blob,
+        comments: comments,
+      );
+
       return {
         "case_id": caseId,
         "aes": aes,
-        "case_data": CaseRetrieveModel.fromRaw(
-          rawCase: rawCase,
-          blob: blob,
-          comments: comments,
-        ),
+        "case_data": caseData,
       };
     } catch (e) {
       throw Exception("Exception during case search: $e");
@@ -190,8 +200,60 @@ class DbManagerService {
     }
   }
 
+  static Future<Map<String, dynamic>> listCases({
+    String? dateRange,
+    String? customStart,
+    String? customEnd,
+    bool createdByMe = false,
+    int limit = 20,
+    String? startAfterId,
+  }) async {
+    // Study coordinator lists cases with filters
+    try {
+      final serverUp = await MainService.ping();
+      if (!serverUp) {
+        throw Exception("Server is unreachable. Please try again later.");
+      }
+
+      final String idToken = await AuthService.authorize();
+
+      // Build query parameters
+      final queryParams = <String, String>{
+        'created_by_me': createdByMe.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (dateRange != null) {
+        queryParams['date_range'] = dateRange;
+      }
+      if (customStart != null) {
+        queryParams['custom_start'] = customStart;
+      }
+      if (customEnd != null) {
+        queryParams['custom_end'] = customEnd;
+      }
+      if (startAfterId != null) {
+        queryParams['start_after_id'] = startAfterId;
+      }
+
+      final url = Uri.parse("$_baseUrl/cases/list").replace(queryParameters: queryParams);
+      final response = await http.get(url, headers: {'Authorization': idToken});
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        // Returns: { cases: [...], next_cursor: "...", has_more: bool }
+        return responseData;
+      } else {
+        throw Exception("Failed to list cases: ${response.body}");
+      }
+    } catch (e) {
+      throw Exception("Exception during case listing: $e");
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getUndiagnosedCases({
     required String clinicianID,
+    Function(Map<String, dynamic>)? onCaseProcessed,
   }) async {
     // Clinician retrieves undiagnosed cases
     try {
@@ -216,61 +278,29 @@ class DbManagerService {
 
       for (var rawCase in rawCases) {
         try {
-          var blob = "NULL";
-          String comments = "NULL";
-          Uint8List aes = Uint8List(0);
           final caseId = rawCase["case_id"] ?? "UNKNOWN";
 
-          if (rawCase["encrypted_aes"] != null) {
-            if (rawCase["encrypted_aes"]["ciphertext"] != "NULL" &&
-                rawCase["encrypted_aes"]["iv"] != "NULL" &&
-                rawCase["encrypted_aes"]["salt"] != "NULL") {
-              final ciphertext = rawCase["encrypted_aes"]["ciphertext"];
-              final iv = rawCase["encrypted_aes"]["iv"];
-              final salt = rawCase["encrypted_aes"]["salt"];
-
-              aes = CryptoUtils.decryptAESKeyWithPassphrase(
-                ciphertext,
-                dotenv.env['PASSWORD'] ?? '',
-                salt,
-                iv,
-              );
-
-              if (rawCase["encrypted_blob"] != null &&
-                  rawCase["encrypted_blob"]["url"] != "NULL" &&
-                  rawCase["encrypted_blob"]["iv"] != "NULL") {
-                final url = rawCase["encrypted_blob"]["url"];
-                final ivBlob = rawCase["encrypted_blob"]["iv"];
-                final encryptedBlob = await StorageService.download(url);
-                blob = CryptoUtils.decryptString(encryptedBlob, ivBlob, aes);
-              }
-
-              if (rawCase["additional_comments"] != null &&
-                  rawCase["additional_comments"]["ciphertext"] != "NULL" &&
-                  rawCase["additional_comments"]["iv"] != "NULL") {
-                comments = CryptoUtils.decryptString(
-                  rawCase["additional_comments"]["ciphertext"],
-                  rawCase["additional_comments"]["iv"],
-                  aes,
-                );
-              }
-            }
-          }
-
-          results.add({
+          // Return only encrypted metadata - no decryption at this stage
+          final caseResult = {
             "case_id": caseId,
-            "aes": aes,
-            "case_data": CaseRetrieveModel.fromRaw(
-              rawCase: rawCase,
-              blob: blob,
-              comments: comments,
-            ),
-          });
+            "submitted_at": rawCase["submitted_at"],
+            "encrypted_aes": rawCase["encrypted_aes"],
+            "encrypted_blob": rawCase["encrypted_blob"],
+            "additional_comments": rawCase["additional_comments"],
+            "created_by_id": rawCase["created_by_id"],
+            "patient_id": rawCase["patient_id"],
+          };
+          results.add(caseResult);
+
+          // Notify callback for progressive rendering
+          onCaseProcessed?.call(caseResult);
         } catch (e) {
-          results.add({
-            "error": "Exception during case decryption: $e",
+          final errorResult = {
+            "error": "Exception during case metadata retrieval: $e",
             "raw_case": rawCase,
-          });
+          };
+          results.add(errorResult);
+          onCaseProcessed?.call(errorResult);
         }
       }
       return results;

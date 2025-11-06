@@ -8,8 +8,8 @@ import 'package:mobile_app/core/models/user.dart';
 import 'package:mobile_app/core/services/main.dart';
 
 class AuthService {
-  // static const String _baseUrl = "http://10.0.2.2:8000/auth";
-  static final String _baseUrl = "${dotenv.env['BACKEND_SERVER_URL']}/auth";
+  static const String _baseUrl = "http://10.0.2.2:8000/auth";
+  // static final String _baseUrl = "${dotenv.env['BACKEND_SERVER_URL']}/auth";
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static Future<Map<String, dynamic>> registerUser({
@@ -17,6 +17,7 @@ class AuthService {
     required String email,
     required String password,
     required UserRole role,
+    required String inviteCode,
   }) async {
     try {
       final serverUp = await MainService.ping();
@@ -30,6 +31,7 @@ class AuthService {
         email: email,
         password: password,
         role: role,
+        inviteCode: inviteCode,
       );
       final body = jsonEncode(user.toJson());
 
@@ -97,6 +99,35 @@ class AuthService {
       throw Exception("Network error: Please check your internet connection.");
     } catch (e) {
       throw Exception("Login failed: $e");
+    }
+  }
+
+  static Future<Map<String, dynamic>> forgotPassword({
+    required String email,
+  }) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+
+      return {
+        "message":
+            "Password reset email sent successfully if the email exists.",
+      };
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-email') {
+        return {"error": "Invalid email address."};
+      }
+      return {
+        "message":
+            "Password reset email sent successfully if the email exists.",
+      };
+    } on SocketException {
+      return {"error": "Network error: Please check your internet connection."};
+    } catch (e) {
+      // Always return success to prevent email enumeration attacks
+      return {
+        "message":
+            "Password reset email sent successfully if the email exists.",
+      };
     }
   }
 
