@@ -1068,7 +1068,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
       builder: (ctx) {
         return Dialog(
           backgroundColor: Colors.black,
-          insetPadding: const EdgeInsets.all(10),
+          insetPadding: EdgeInsets.zero,
           child: Stack(
             children: [
               // Zoomable image
@@ -1078,7 +1078,9 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                   maxScale: 5.0,
                   panEnabled: true,
                   scaleEnabled: true,
-                  child: Image.memory(_images[imageIndex], fit: BoxFit.contain),
+                  constrained: false,
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  child: Image.memory(_images[imageIndex], fit: BoxFit.cover),
                 ),
               ),
               // Close button
@@ -1129,7 +1131,7 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
-                      'Pinch to zoom • Double-tap to zoom • Drag to pan',
+                      'Pinch to zoom • Drag to pan',
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                       textAlign: TextAlign.center,
                     ),

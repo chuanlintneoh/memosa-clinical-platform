@@ -8,7 +8,7 @@
 6. /Resolved [BUG] Remove copy button for some text fields in edit case screen
 7. /Resolved [BUG] Exception: Error fetching invite codes: Failed to fetch invite codes right after generate invite code
 8. /Resolved [BUG] Exception: Registration failed: Exception: {"detail":"Error validating invite code: can't compare offset-naive and offset-aware datetimes"} when trying to register account with the new invite code
-9. [BUG] Double tap to zoom in/out image doesn't work, some images are surrounded by black view window, even when zoom in the view window is fixed (black on the outside)
+9. /Resolved [BUG] Double tap to zoom in/out image doesn't work, some images are surrounded by black view window, even when zoom in the view window is fixed (black on the outside)
 
 # ENHANCEMENTS
 
