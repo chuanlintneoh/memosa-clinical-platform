@@ -656,6 +656,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 _caseIdController,
                 "Case ID",
                 noExpand: true,
+                copiable: true,
               ),
             ),
             const SizedBox(width: 12),
@@ -664,14 +665,15 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 _createdByController,
                 "Created By",
                 noExpand: true,
+                copiable: true,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        _buildTextField(_createdAtController, "Created At"),
+        _buildTextField(_createdAtController, "Created At", copiable: true),
         const SizedBox(height: 16),
-        _buildTextField(_submittedAtController, "Submitted At"),
+        _buildTextField(_submittedAtController, "Submitted At", copiable: true),
       ],
     );
   }
@@ -994,18 +996,20 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         _buildTextField(
           _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
+          copiable: true,
         ),
         const SizedBox(height: 16),
-        _buildTextField(_chiefComplaintController, "Chief Complaint"),
+        _buildTextField(_chiefComplaintController, "Chief Complaint", copiable: true),
         const SizedBox(height: 16),
         _buildTextField(
           _presentingComplaintHistoryController,
           "Presenting Complaint History",
+          copiable: true,
         ),
         const SizedBox(height: 16),
-        _buildTextField(_medicationHistoryController, "Medication History"),
+        _buildTextField(_medicationHistoryController, "Medication History", copiable: true),
         const SizedBox(height: 16),
-        _buildTextField(_medicalHistoryController, "Medical History"),
+        _buildTextField(_medicalHistoryController, "Medical History", copiable: true),
       ],
     );
   }
@@ -1341,6 +1345,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         _buildTextField(
           _biopsyAgreeWithCOEController[_selectedImageIndex],
           "Biopsy agree with COE diagnosis?",
+          copiable: true,
         ),
         const SizedBox(height: 24),
         Text(
@@ -1443,6 +1448,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     bool readOnly = true,
     bool multiline = false,
     bool noExpand = false,
+    bool copiable = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -1451,7 +1457,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       maxLines: noExpand ? 1 : 4,
       decoration: InputDecoration(
         labelText: label,
-        suffixIcon: readOnly
+        suffixIcon: readOnly && copiable
             ? IconButton(
                 icon: const Icon(Icons.copy),
                 onPressed: () {
