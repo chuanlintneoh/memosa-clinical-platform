@@ -1072,15 +1072,16 @@ class _DiagnoseCaseScreenState extends State<DiagnoseCaseScreen> {
           child: Stack(
             children: [
               // Zoomable image
-              Center(
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 5.0,
-                  panEnabled: true,
-                  scaleEnabled: true,
-                  constrained: false,
-                  boundaryMargin: const EdgeInsets.all(double.infinity),
-                  child: Image.memory(_images[imageIndex], fit: BoxFit.cover),
+              InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 5.0,
+                panEnabled: true,
+                scaleEnabled: true,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                child: SizedBox(
+                  width: MediaQuery.of(ctx).size.width,
+                  height: MediaQuery.of(ctx).size.height,
+                  child: Image.memory(_images[imageIndex], fit: BoxFit.contain),
                 ),
               ),
               // Close button
