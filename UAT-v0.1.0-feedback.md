@@ -5,10 +5,11 @@
 3. /Tested /Resolved [BUG] App crash when tapping screen during searching case
 4. /Resolved [BUG] Stability in case creation (backend error handling in AI inference service after timeout)
 5. /Tested /Resolved [BUG] App crashes when tapping back when undiagnosed cases screen loading
-6. [BUG] Remove copy button for some text fields in edit case screen
-7. [BUG] Exception: Error fetching invite codes: Failed to fetch invite codes right after generate invite code
-8. [BUG] Exception: Registration failed: Exception: {"detail":"Error validating invite code: can't compare offset-naive and offset-aware datetimes"} when trying to register account with the new invite code
-9. [BUG] Double tap to zoom in/out image doesn't work, some images are surrounded by black view window, even when zoom in the view window is fixed (black on the outside)
+6. /Resolved [BUG] Remove copy button for some text fields in edit case screen
+7. /Resolved [BUG] Exception: Error fetching invite codes: Failed to fetch invite codes right after generate invite code
+8. /Resolved [BUG] Exception: Registration failed: Exception: {"detail":"Error validating invite code: can't compare offset-naive and offset-aware datetimes"} when trying to register account with the new invite code
+9. /Resolved [BUG] Double tap to zoom in/out image doesn't work, some images are surrounded by black view window, even when zoom in the view window is fixed (black on the outside)
+10. /Resolved [BUG] Missing created at and created by field data in diagnose case screen
 
 # ENHANCEMENTS
 
@@ -32,9 +33,9 @@
 18. /Resolved [ENHANCEMENT] Notification mechanism to developer when AI inference service is down
 19. /Nofix [ENHANCEMENT] Is it possible to have save as draft for clinician diagnosis? - SC, AN
 20. /Nofix [ENHANCEMENT] Case submission and export bundle takes a while - AN
-21. [ENHANCEMENT] Make consent form, biopsy reports also zoomable?
+21. /Resolved [ENHANCEMENT] Make consent form, biopsy reports also zoomable?
 
-## OTHERS
+# OTHERS
 
 /Nofix [BUG] Cannot find cases after submission - SC (TBC)
 /Nofix [BUG] Search not working - SC, AN [see screenshot] (TBC)

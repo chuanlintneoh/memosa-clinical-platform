@@ -656,6 +656,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 _caseIdController,
                 "Case ID",
                 noExpand: true,
+                copiable: true,
               ),
             ),
             const SizedBox(width: 12),
@@ -664,14 +665,15 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                 _createdByController,
                 "Created By",
                 noExpand: true,
+                copiable: true,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        _buildTextField(_createdAtController, "Created At"),
+        _buildTextField(_createdAtController, "Created At", copiable: true),
         const SizedBox(height: 16),
-        _buildTextField(_submittedAtController, "Submitted At"),
+        _buildTextField(_submittedAtController, "Submitted At", copiable: true),
       ],
     );
   }
@@ -994,18 +996,20 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         _buildTextField(
           _lesionClinicalPresentationController,
           "Lesion Clinical Presentation",
+          copiable: true,
         ),
         const SizedBox(height: 16),
-        _buildTextField(_chiefComplaintController, "Chief Complaint"),
+        _buildTextField(_chiefComplaintController, "Chief Complaint", copiable: true),
         const SizedBox(height: 16),
         _buildTextField(
           _presentingComplaintHistoryController,
           "Presenting Complaint History",
+          copiable: true,
         ),
         const SizedBox(height: 16),
-        _buildTextField(_medicationHistoryController, "Medication History"),
+        _buildTextField(_medicationHistoryController, "Medication History", copiable: true),
         const SizedBox(height: 16),
-        _buildTextField(_medicalHistoryController, "Medical History"),
+        _buildTextField(_medicalHistoryController, "Medical History", copiable: true),
       ],
     );
   }
@@ -1341,6 +1345,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         _buildTextField(
           _biopsyAgreeWithCOEController[_selectedImageIndex],
           "Biopsy agree with COE diagnosis?",
+          copiable: true,
         ),
         const SizedBox(height: 24),
         Text(
@@ -1443,6 +1448,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
     bool readOnly = true,
     bool multiline = false,
     bool noExpand = false,
+    bool copiable = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -1451,7 +1457,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       maxLines: noExpand ? 1 : 4,
       decoration: InputDecoration(
         labelText: label,
-        suffixIcon: readOnly
+        suffixIcon: readOnly && copiable
             ? IconButton(
                 icon: const Icon(Icons.copy),
                 onPressed: () {
@@ -1581,15 +1587,80 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
         case "bmp":
           showDialog(
             context: context,
-            builder: (_) => AlertDialog(
-              title: Text("File as ${fileType.toLowerCase()}"),
-              content: SingleChildScrollView(child: Image.memory(fileBytes)),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Close"),
-                ),
-              ],
+            builder: (ctx) => Dialog(
+              backgroundColor: Colors.black,
+              insetPadding: EdgeInsets.zero,
+              child: Stack(
+                children: [
+                  // Zoomable image
+                  Center(
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      panEnabled: true,
+                      scaleEnabled: true,
+                      constrained: false,
+                      boundaryMargin: const EdgeInsets.all(double.infinity),
+                      child: Image.memory(fileBytes, fit: BoxFit.cover),
+                    ),
+                  ),
+                  // Close button
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ),
+                  // Image title
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        "File as ${fileType.toLowerCase()}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Zoom instructions
+                  Positioned(
+                    bottom: 10,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Pinch to zoom • Drag to pan',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
           break;
@@ -1867,7 +1938,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
       builder: (ctx) {
         return Dialog(
           backgroundColor: Colors.black,
-          insetPadding: const EdgeInsets.all(10),
+          insetPadding: EdgeInsets.zero,
           child: Stack(
             children: [
               // Zoomable image
@@ -1877,7 +1948,9 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                   maxScale: 5.0,
                   panEnabled: true,
                   scaleEnabled: true,
-                  child: Image.memory(_images[imageIndex], fit: BoxFit.contain),
+                  constrained: false,
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  child: Image.memory(_images[imageIndex], fit: BoxFit.cover),
                 ),
               ),
               // Close button
@@ -1928,7 +2001,7 @@ class _EditCaseScreenState extends State<EditCaseScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
-                      'Pinch to zoom • Double-tap to zoom • Drag to pan',
+                      'Pinch to zoom • Drag to pan',
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                       textAlign: TextAlign.center,
                     ),
