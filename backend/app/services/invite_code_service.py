@@ -1,6 +1,6 @@
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from firebase_admin import firestore
 from app.core.firebase import db
@@ -42,7 +42,7 @@ class InviteCodeService:
             Dictionary containing the created invite code data
         """
         code = InviteCodeService.generate_code()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expires_at = now + timedelta(days=expires_in_days)
 
         invite_data = {
@@ -90,7 +90,7 @@ class InviteCodeService:
 
             # Check if code has expired
             expires_at = data.get("expires_at")
-            if expires_at and expires_at < datetime.utcnow():
+            if expires_at and expires_at < datetime.now(timezone.utc):
                 return False, "This invite code has expired"
 
             # Check email restriction
@@ -169,7 +169,7 @@ class InviteCodeService:
         for doc in docs:
             data = doc.to_dict()
             # Add computed fields
-            data["is_expired"] = data.get("expires_at", datetime.utcnow()) < datetime.utcnow()
+            data["is_expired"] = data.get("expires_at", datetime.now(timezone.utc)) < datetime.now(timezone.utc)
             codes.append(data)
 
         return codes
@@ -217,7 +217,7 @@ class InviteCodeService:
                 return None
 
             data = doc.to_dict()
-            data["is_expired"] = data.get("expires_at", datetime.utcnow()) < datetime.utcnow()
+            data["is_expired"] = data.get("expires_at", datetime.now(timezone.utc)) < datetime.now(timezone.utc)
             return data
 
         except Exception as e:
