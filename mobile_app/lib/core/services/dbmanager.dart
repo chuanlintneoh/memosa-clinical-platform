@@ -281,11 +281,12 @@ class DbManagerService {
           // Return only encrypted metadata - no decryption at this stage
           final caseResult = {
             "case_id": caseId,
+            "created_at": rawCase["created_at"],
+            "created_by": rawCase["created_by"],
             "submitted_at": rawCase["submitted_at"],
             "encrypted_aes": rawCase["encrypted_aes"],
             "encrypted_blob": rawCase["encrypted_blob"],
             "additional_comments": rawCase["additional_comments"],
-            "created_by_id": rawCase["created_by_id"],
             "patient_id": rawCase["patient_id"],
           };
           results.add(caseResult);
