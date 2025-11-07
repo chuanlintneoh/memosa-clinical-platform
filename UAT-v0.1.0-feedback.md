@@ -32,9 +32,9 @@
 18. /Resolved [ENHANCEMENT] Notification mechanism to developer when AI inference service is down
 19. /Nofix [ENHANCEMENT] Is it possible to have save as draft for clinician diagnosis? - SC, AN
 20. /Nofix [ENHANCEMENT] Case submission and export bundle takes a while - AN
-21. [ENHANCEMENT] Make consent form, biopsy reports also zoomable?
+21. /Resolved [ENHANCEMENT] Make consent form, biopsy reports also zoomable?
 
-## OTHERS
+# OTHERS
 
 /Nofix [BUG] Cannot find cases after submission - SC (TBC)
 /Nofix [BUG] Search not working - SC, AN [see screenshot] (TBC)
