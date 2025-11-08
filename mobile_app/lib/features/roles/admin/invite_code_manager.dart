@@ -564,6 +564,8 @@ Max Uses: ${maxUses == 0 ? 'Unlimited' : maxUses}
                 const SizedBox(height: 4),
                 Text(
                   value,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -599,22 +601,26 @@ Max Uses: ${maxUses == 0 ? 'Unlimited' : maxUses}
                 Expanded(
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          codeText,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            letterSpacing: 2,
-                            color: theme.colorScheme.onPrimaryContainer,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            codeText,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              letterSpacing: 2,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
                           ),
                         ),
                       ),
@@ -696,7 +702,11 @@ Max Uses: ${maxUses == 0 ? 'Unlimited' : maxUses}
   Widget _buildInfoChip(IconData icon, String label) {
     return Chip(
       avatar: Icon(icon, size: 16),
-      label: Text(label),
+      label: Text(
+        label,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+      ),
       labelStyle: const TextStyle(fontSize: 12),
       padding: const EdgeInsets.symmetric(horizontal: 4),
     );
