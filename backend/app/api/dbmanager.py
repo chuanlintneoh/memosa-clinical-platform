@@ -275,23 +275,54 @@ class DbManager:
         db.collection("cases").document(case_id).update(updates)
         print(f"[DbManager] Updated case {case_id}.")
 
-    def get_undiagnosed_cases(self, clinician_id: str):
-        print(f"[DbManager] Retrieving undiagnosed cases for clinician {clinician_id}...")
+    def get_undiagnosed_cases(
+        self,
+        clinician_id: str,
+        limit: int = 100,
+        days_back: int = 90
+    ):
+        """
+        Retrieve undiagnosed cases for a clinician with pagination and date filtering.
 
-        cases = db.collection("cases").stream()
+        Args:
+            clinician_id: The clinician's UID
+            limit: Maximum number of cases to return (default: 100)
+            days_back: Only check cases from the last N days (default: 90)
+
+        Returns:
+            List of undiagnosed cases
+        """
+        print(f"[DbManager] Retrieving undiagnosed cases for clinician {clinician_id} (limit={limit}, days_back={days_back})...")
+
+        # Query recent cases first to reduce dataset
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+
+        query = db.collection("cases")\
+            .where("submitted_at", ">=", cutoff_date)\
+            .order_by("submitted_at", direction=firestore.Query.DESCENDING)\
+            .limit(limit * 2)  # Query more than limit to account for filtering
+
+        cases = query.stream()
         undiagnosed_cases = []
+        checked_count = 0
 
         for doc in cases:
+            checked_count += 1
             case_data = doc.to_dict()
             diagnoses_list = case_data.get("diagnoses", [])
 
+            # Check if this clinician hasn't diagnosed at least one lesion
             if any(clinician_id not in diag for diag in diagnoses_list):
                 undiagnosed_cases.append({
-                "case_id": doc.id,
-                **case_data
-            })
-                
-        print(f"[DbManager] Found {len(undiagnosed_cases)} undiagnosed cases for clinician {clinician_id}.")
+                    "case_id": doc.id,
+                    **case_data
+                })
+
+                # Stop if we've found enough undiagnosed cases
+                if len(undiagnosed_cases) >= limit:
+                    break
+
+        print(f"[DbManager] Found {len(undiagnosed_cases)} undiagnosed cases for clinician {clinician_id} (checked {checked_count} recent cases).")
         return undiagnosed_cases
 
     def submit_case_diagnosis(self, case_id: str, diagnoses: List[Dict[str, Any]]):
@@ -364,7 +395,12 @@ class DbManager:
     async def _process_bundle(self, base_dir: Path, include_all: bool = False):
         print(f"[DbManager] Processing bundle (include_all={include_all})...")
 
-        cases = self.get_all_cases()
+        # Get all case IDs first (lightweight query)
+        print(f"[DbManager] Fetching case IDs...")
+        docs = db.collection("cases").stream()
+        case_ids = [doc.id for doc in docs]
+        total_cases = len(case_ids)
+        print(f"[DbManager] Found {total_cases} cases to process.")
 
         images_dir = base_dir / "images"
         reports_dir = base_dir / "biopsy_reports"
@@ -399,190 +435,222 @@ class DbManager:
         clinician_mapping = {}
         clinician_counter = 0
 
-        for case in cases:
-            for diagnose in case.get("diagnoses", []):
-                for key, val in diagnose.items():
-                    if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality", "low_quality_reason"]):
-                        uid = key
-                        if uid not in clinician_mapping:
-                            clinician_counter += 1
-                            clinician_mapping[uid] = f"clinician{clinician_counter:02d}"
+        # Process cases in batches to prevent memory overflow
+        BATCH_SIZE = 10  # Process 10 cases at a time
+        processed_count = 0
+
+        # First pass: Build clinician mapping (lightweight - only metadata)
+        print(f"[DbManager] Building clinician mapping...")
+        for i in range(0, len(case_ids), BATCH_SIZE):
+            batch_ids = case_ids[i:i + BATCH_SIZE]
+            for case_id in batch_ids:
+                doc = db.collection("cases").document(case_id).get()
+                if not doc.exists:
+                    continue
+                case_data = doc.to_dict()
+                for diagnose in case_data.get("diagnoses", []):
+                    for key, val in diagnose.items():
+                        if isinstance(val, dict) and all(k in val for k in ["lesion_type", "clinical_diagnosis", "low_quality", "low_quality_reason"]):
+                            uid = key
+                            if uid not in clinician_mapping:
+                                clinician_counter += 1
+                                clinician_mapping[uid] = f"clinician{clinician_counter:02d}"
         print(f"[DbManager] Mapped {len(clinician_mapping)} clinicians.")
 
-        for case in cases:
-            name = idtype = idnum = dob = age = gender = ethnicity = phonenum = address = attending_hospital = lesion_clinical_presentation = chief_complaint = presenting_complaint_history = medication_history = medical_history = additional_comments = "NULL"
-            
-            aes_key = None
-            aes = case.get("encrypted_aes", {"salt": "NULL", "ciphertext": "NULL", "iv": "NULL"})
-            if (aes.get("salt") != "NULL" and aes.get("ciphertext") != "NULL" and aes.get("iv") != "NULL"):
-                aes_key = CryptoUtils.decrypt_aes_key_with_passphrase(
-                    encrypted_aes_key_b64=aes["ciphertext"],
-                    passphrase=PASSWORD,
-                    salt_b64=aes["salt"],
-                    iv_b64=aes["iv"]
-                )
+        # Second pass: Process cases in batches with full data
+        for batch_num, i in enumerate(range(0, len(case_ids), BATCH_SIZE), start=1):
+            batch_ids = case_ids[i:i + BATCH_SIZE]
+            print(f"[DbManager] Processing batch {batch_num}/{(len(case_ids) + BATCH_SIZE - 1) // BATCH_SIZE} ({len(batch_ids)} cases)...")
 
-            encrypted_blob = case.get("encrypted_blob", {"url": "NULL", "iv": "NULL"})
-            if (encrypted_blob.get("url") != "NULL" and encrypted_blob.get("iv") != "NULL" and aes_key):
-                encrypted_blob_data = await Storage.download(encrypted_blob.get("url"))
-                blob_data = CryptoUtils.decrypt_string(
-                    encrypted_data_b64=encrypted_blob_data,
-                    iv_b64=encrypted_blob["iv"],
-                    aes_key=aes_key
-                )
-                blob_data = json.loads(blob_data)
-                age = blob_data.get("age", "NULL")
-                gender = blob_data.get("gender", "NULL")
-                ethnicity = blob_data.get("ethnicity", "NULL")
-                lesion_clinical_presentation = blob_data.get("lesion_clinical_presentation", "NULL")
-                chief_complaint = blob_data.get("chief_complaint", "NULL")
-                presenting_complaint_history = blob_data.get("presenting_complaint_history", "NULL")
-                medication_history = blob_data.get("medication_history", "NULL")
-                medical_history = blob_data.get("medical_history", "NULL")
+            for case_id in batch_ids:
+                doc = db.collection("cases").document(case_id).get()
+                if not doc.exists:
+                    continue
 
-                for idx, img_b64 in enumerate(blob_data.get("images", [])):
-                    img_bytes = base64.b64decode(img_b64)
-                    img_path = images_dir / f"{case['case_id']}_{idx}.jpg"
-                    with open(img_path, "wb") as f:
-                        f.write(img_bytes)
+                case = doc.to_dict()
+                case["case_id"] = case_id
+                processed_count += 1
 
-                if include_all:
-                    name = blob_data.get("name", "NULL")
-                    idtype = blob_data.get("idtype", "NULL")
-                    idnum = blob_data.get("idnum", "NULL")
-                    dob = blob_data.get("dob", "NULL")
-                    phonenum = blob_data.get("phonenum", "NULL")
-                    address = blob_data.get("address", "NULL")
-                    attending_hospital = blob_data.get("attending_hospital", "NULL")
-                    consent_form = blob_data.get("consent_form", {
-                        "fileType": "NULL",
-                        "fileBytes": "NULL"
-                    })
-                    if consent_form["fileBytes"] != "NULL":
-                        file_bytes = consent_form["fileBytes"]
-                        if isinstance(file_bytes, str):
-                            decoded_bytes = base64.b64decode(file_bytes)
-                        elif isinstance(file_bytes, list):
-                            decoded_bytes = bytes(file_bytes)
-                        else:
-                            print(f"[DbManager] Skipped consent form of case {case['case_id']} with unknown fileBytes type: {type(file_bytes)}")
-                            decoded_bytes = None
-                        if decoded_bytes:
-                            with open(consent_dir / f"{case['case_id']}.{str(consent_form['fileType']).lower()}", "wb") as f:
-                                f.write(decoded_bytes)
+                name = idtype = idnum = dob = age = gender = ethnicity = phonenum = address = attending_hospital = lesion_clinical_presentation = chief_complaint = presenting_complaint_history = medication_history = medical_history = additional_comments = "NULL"
 
-            additional_comments_obj = case.get("additional_comments", {"ciphertext": "NULL", "iv": "NULL"})
-            if (additional_comments_obj.get("ciphertext") != "NULL" and additional_comments_obj.get("iv") != "NULL" and aes_key):
-                additional_comments = CryptoUtils.decrypt_string(
-                    encrypted_data_b64=additional_comments_obj["ciphertext"],
-                    iv_b64=additional_comments_obj["iv"],
-                    aes_key=aes_key
-                )
+                aes_key = None
+                aes = case.get("encrypted_aes", {"salt": "NULL", "ciphertext": "NULL", "iv": "NULL"})
+                if (aes.get("salt") != "NULL" and aes.get("ciphertext") != "NULL" and aes.get("iv") != "NULL"):
+                    aes_key = CryptoUtils.decrypt_aes_key_with_passphrase(
+                        encrypted_aes_key_b64=aes["ciphertext"],
+                        passphrase=PASSWORD,
+                        salt_b64=aes["salt"],
+                        iv_b64=aes["iv"]
+                    )
 
-            base = {
-                "case_id": case.get("case_id"),
-                "created_at": case.get("created_at"),
-                "created_by": case.get("created_by"),
-                "submitted_at": case.get("submitted_at"),
-                "name": name,
-                "idtype": idtype,
-                "idnum": idnum,
-                "dob": dob,
-                "age": age,
-                "gender": gender,
-                "ethnicity": ethnicity,
-                "phonenum": phonenum,
-                "address": address,
-                "attending_hospital": attending_hospital,
-                "alcohol": case.get("alcohol"),
-                "alcohol_duration": case.get("alcohol_duration"),
-                "betel_quid": case.get("betel_quid"),
-                "betel_quid_duration": case.get("betel_quid_duration"),
-                "smoking": case.get("smoking"),
-                "smoking_duration": case.get("smoking_duration"),
-                "lesion_clinical_presentation": lesion_clinical_presentation,
-                "chief_complaint": chief_complaint,
-                "presenting_complaint_history": presenting_complaint_history,
-                "medication_history": medication_history,
-                "medical_history": medical_history,
-                "oral_hygiene_products_used": case.get("oral_hygiene_products_used"),
-                "oral_hygiene_product_type_used": case.get("oral_hygiene_product_type_used"),
-                "sls_containing_toothpaste": case.get("sls_containing_toothpaste"),
-                "sls_containing_toothpaste_used": case.get("sls_containing_toothpaste_used"),
-                "additional_comments": additional_comments
-            }
-            if not include_all:
-                for col in ["name", "idtype", "idnum", "dob", "phonenum", "address", "attending_hospital"]:
-                    base.pop(col, None)
+                encrypted_blob = case.get("encrypted_blob", {"url": "NULL", "iv": "NULL"})
+                if (encrypted_blob.get("url") != "NULL" and encrypted_blob.get("iv") != "NULL" and aes_key):
+                    encrypted_blob_data = await Storage.download(encrypted_blob.get("url"))
+                    blob_data = CryptoUtils.decrypt_string(
+                        encrypted_data_b64=encrypted_blob_data,
+                        iv_b64=encrypted_blob["iv"],
+                        aes_key=aes_key
+                    )
+                    blob_data = json.loads(blob_data)
+                    age = blob_data.get("age", "NULL")
+                    gender = blob_data.get("gender", "NULL")
+                    ethnicity = blob_data.get("ethnicity", "NULL")
+                    lesion_clinical_presentation = blob_data.get("lesion_clinical_presentation", "NULL")
+                    chief_complaint = blob_data.get("chief_complaint", "NULL")
+                    presenting_complaint_history = blob_data.get("presenting_complaint_history", "NULL")
+                    medication_history = blob_data.get("medication_history", "NULL")
+                    medical_history = blob_data.get("medical_history", "NULL")
 
-            diagnoses = case.get("diagnoses", [])
-            if not diagnoses:
-                row = base.copy()
-                for i in range(9):
-                    row.update({
-                        "image_index": i,
-                        "ai_lesion_type": "NULL",
-                        "biopsy_clinical_diagnosis": "NULL",
-                        "biopsy_lesion_type": "NULL",
-                        "coe_clinical_diagnosis": "NULL",
-                        "coe_lesion_type": "NULL",
-                        "biopsy_agree_with_coe": "NULL",
-                    })
-                    for clinician in clinician_mapping.values():
-                        row[f"{clinician}_lesion_type"] = "NULL"
-                        row[f"{clinician}_clinical_diagnosis"] = "NULL"
-                        row[f"{clinician}_low_quality"] = "NULL"
-                        row[f"{clinician}_low_quality_reason"] = "NULL"
-                    rows.append(row)
-            else:
-                for i, diagnose in enumerate(diagnoses):
+                    for idx, img_b64 in enumerate(blob_data.get("images", [])):
+                        img_bytes = base64.b64decode(img_b64)
+                        img_path = images_dir / f"{case['case_id']}_{idx}.jpg"
+                        with open(img_path, "wb") as f:
+                            f.write(img_bytes)
+
+                    if include_all:
+                        name = blob_data.get("name", "NULL")
+                        idtype = blob_data.get("idtype", "NULL")
+                        idnum = blob_data.get("idnum", "NULL")
+                        dob = blob_data.get("dob", "NULL")
+                        phonenum = blob_data.get("phonenum", "NULL")
+                        address = blob_data.get("address", "NULL")
+                        attending_hospital = blob_data.get("attending_hospital", "NULL")
+                        consent_form = blob_data.get("consent_form", {
+                            "fileType": "NULL",
+                            "fileBytes": "NULL"
+                        })
+                        if consent_form["fileBytes"] != "NULL":
+                            file_bytes = consent_form["fileBytes"]
+                            if isinstance(file_bytes, str):
+                                decoded_bytes = base64.b64decode(file_bytes)
+                            elif isinstance(file_bytes, list):
+                                decoded_bytes = bytes(file_bytes)
+                            else:
+                                print(f"[DbManager] Skipped consent form of case {case['case_id']} with unknown fileBytes type: {type(file_bytes)}")
+                                decoded_bytes = None
+                            if decoded_bytes:
+                                with open(consent_dir / f"{case['case_id']}.{str(consent_form['fileType']).lower()}", "wb") as f:
+                                    f.write(decoded_bytes)
+
+                additional_comments_obj = case.get("additional_comments", {"ciphertext": "NULL", "iv": "NULL"})
+                if (additional_comments_obj.get("ciphertext") != "NULL" and additional_comments_obj.get("iv") != "NULL" and aes_key):
+                    additional_comments = CryptoUtils.decrypt_string(
+                        encrypted_data_b64=additional_comments_obj["ciphertext"],
+                        iv_b64=additional_comments_obj["iv"],
+                        aes_key=aes_key
+                    )
+
+                base = {
+                    "case_id": case.get("case_id"),
+                    "created_at": case.get("created_at"),
+                    "created_by": case.get("created_by"),
+                    "submitted_at": case.get("submitted_at"),
+                    "name": name,
+                    "idtype": idtype,
+                    "idnum": idnum,
+                    "dob": dob,
+                    "age": age,
+                    "gender": gender,
+                    "ethnicity": ethnicity,
+                    "phonenum": phonenum,
+                    "address": address,
+                    "attending_hospital": attending_hospital,
+                    "alcohol": case.get("alcohol"),
+                    "alcohol_duration": case.get("alcohol_duration"),
+                    "betel_quid": case.get("betel_quid"),
+                    "betel_quid_duration": case.get("betel_quid_duration"),
+                    "smoking": case.get("smoking"),
+                    "smoking_duration": case.get("smoking_duration"),
+                    "lesion_clinical_presentation": lesion_clinical_presentation,
+                    "chief_complaint": chief_complaint,
+                    "presenting_complaint_history": presenting_complaint_history,
+                    "medication_history": medication_history,
+                    "medical_history": medical_history,
+                    "oral_hygiene_products_used": case.get("oral_hygiene_products_used"),
+                    "oral_hygiene_product_type_used": case.get("oral_hygiene_product_type_used"),
+                    "sls_containing_toothpaste": case.get("sls_containing_toothpaste"),
+                    "sls_containing_toothpaste_used": case.get("sls_containing_toothpaste_used"),
+                    "additional_comments": additional_comments
+                }
+                if not include_all:
+                    for col in ["name", "idtype", "idnum", "dob", "phonenum", "address", "attending_hospital"]:
+                        base.pop(col, None)
+
+                diagnoses = case.get("diagnoses", [])
+                if not diagnoses:
                     row = base.copy()
-                    processed = _process_case(diagnose)
-                    row.update({
-                        "image_index": i,
-                        "ai_lesion_type": processed.get("ai_lesion_type", "NULL"),
-                        "biopsy_clinical_diagnosis": processed.get("biopsy_clinical_diagnosis", "NULL"),
-                        "biopsy_lesion_type": processed.get("biopsy_lesion_type", "NULL"),
-                        "coe_clinical_diagnosis": processed.get("coe_clinical_diagnosis", "NULL"),
-                        "coe_lesion_type": processed.get("coe_lesion_type", "NULL"),
-                        "biopsy_agree_with_coe": processed.get("biopsy_agree_with_coe", "NULL")
-                    })
-                    for uid, clinician in clinician_mapping.items():
-                        if uid in diagnose:
-                            cdata = diagnose[uid]
-                            row[f"{clinician}_lesion_type"] = cdata.get("lesion_type", "NULL")
-                            row[f"{clinician}_clinical_diagnosis"] = cdata.get("clinical_diagnosis", "NULL")
-                            row[f"{clinician}_low_quality"] = cdata.get("low_quality", "NULL")
-                            row[f"{clinician}_low_quality_reason"] = cdata.get("low_quality_reason", "NULL")
-                        else:
+                    for i in range(9):
+                        row.update({
+                            "image_index": i,
+                            "ai_lesion_type": "NULL",
+                            "biopsy_clinical_diagnosis": "NULL",
+                            "biopsy_lesion_type": "NULL",
+                            "coe_clinical_diagnosis": "NULL",
+                            "coe_lesion_type": "NULL",
+                            "biopsy_agree_with_coe": "NULL",
+                        })
+                        for clinician in clinician_mapping.values():
                             row[f"{clinician}_lesion_type"] = "NULL"
                             row[f"{clinician}_clinical_diagnosis"] = "NULL"
                             row[f"{clinician}_low_quality"] = "NULL"
                             row[f"{clinician}_low_quality_reason"] = "NULL"
-                    rows.append(row)
+                        rows.append(row)
+                else:
+                    for i, diagnose in enumerate(diagnoses):
+                        row = base.copy()
+                        processed = _process_case(diagnose)
+                        row.update({
+                            "image_index": i,
+                            "ai_lesion_type": processed.get("ai_lesion_type", "NULL"),
+                            "biopsy_clinical_diagnosis": processed.get("biopsy_clinical_diagnosis", "NULL"),
+                            "biopsy_lesion_type": processed.get("biopsy_lesion_type", "NULL"),
+                            "coe_clinical_diagnosis": processed.get("coe_clinical_diagnosis", "NULL"),
+                            "coe_lesion_type": processed.get("coe_lesion_type", "NULL"),
+                            "biopsy_agree_with_coe": processed.get("biopsy_agree_with_coe", "NULL")
+                        })
+                        for uid, clinician in clinician_mapping.items():
+                            if uid in diagnose:
+                                cdata = diagnose[uid]
+                                row[f"{clinician}_lesion_type"] = cdata.get("lesion_type", "NULL")
+                                row[f"{clinician}_clinical_diagnosis"] = cdata.get("clinical_diagnosis", "NULL")
+                                row[f"{clinician}_low_quality"] = cdata.get("low_quality", "NULL")
+                                row[f"{clinician}_low_quality_reason"] = cdata.get("low_quality_reason", "NULL")
+                            else:
+                                row[f"{clinician}_lesion_type"] = "NULL"
+                                row[f"{clinician}_clinical_diagnosis"] = "NULL"
+                                row[f"{clinician}_low_quality"] = "NULL"
+                                row[f"{clinician}_low_quality_reason"] = "NULL"
+                        rows.append(row)
 
-                    biopsy_report_obj = diagnose.get("biopsy_report", {
-                        "url": "NULL",
-                        "iv": "NULL",
-                        "fileType": "NULL"
-                    })
-                    if (biopsy_report_obj.get("url") != "NULL" and biopsy_report_obj.get("iv") != "NULL" and aes_key):
-                        biopsy_report_data = await Storage.download(biopsy_report_obj.get("url"))
-                        biopsy_report = CryptoUtils.decrypt_string(
-                            encrypted_data_b64=biopsy_report_data,
-                            iv_b64=biopsy_report_obj["iv"],
-                            aes_key=aes_key
-                        )
-                        if isinstance(biopsy_report, str):
-                            decoded_bytes = base64.b64decode(biopsy_report)
-                        elif isinstance(biopsy_report, list):
-                            decoded_bytes = bytes(biopsy_report)
-                        else:
-                            print(f"[DbManager] Skipped biopsy report of case {case['case_id']} image {i} with unknown fileBytes type: {type(biopsy_report)}")
-                            decoded_bytes = None
-                        if decoded_bytes:
-                            with open(reports_dir / f"{case['case_id']}_{i}.{str(biopsy_report_obj['fileType']).lower()}", "wb") as f:
-                                f.write(decoded_bytes)
+                        biopsy_report_obj = diagnose.get("biopsy_report", {
+                            "url": "NULL",
+                            "iv": "NULL",
+                            "fileType": "NULL"
+                        })
+                        if (biopsy_report_obj.get("url") != "NULL" and biopsy_report_obj.get("iv") != "NULL" and aes_key):
+                            biopsy_report_data = await Storage.download(biopsy_report_obj.get("url"))
+                            biopsy_report = CryptoUtils.decrypt_string(
+                                encrypted_data_b64=biopsy_report_data,
+                                iv_b64=biopsy_report_obj["iv"],
+                                aes_key=aes_key
+                            )
+                            if isinstance(biopsy_report, str):
+                                decoded_bytes = base64.b64decode(biopsy_report)
+                            elif isinstance(biopsy_report, list):
+                                decoded_bytes = bytes(biopsy_report)
+                            else:
+                                print(f"[DbManager] Skipped biopsy report of case {case['case_id']} image {i} with unknown fileBytes type: {type(biopsy_report)}")
+                                decoded_bytes = None
+                            if decoded_bytes:
+                                with open(reports_dir / f"{case['case_id']}_{i}.{str(biopsy_report_obj['fileType']).lower()}", "wb") as f:
+                                    f.write(decoded_bytes)
+
+            # Clear processed batch from memory
+            import gc
+            gc.collect()
+            print(f"[DbManager] Batch {batch_num} complete. Total processed: {processed_count}/{total_cases}")
+
+        print(f"[DbManager] All {total_cases} cases processed.")
 
         mastersheet_df = pd.DataFrame(rows)
         print(f"[DbManager] Generated Sheet 1: Mastersheet with {len(mastersheet_df)} rows and {len(mastersheet_df.columns)} columns.")

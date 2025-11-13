@@ -252,6 +252,8 @@ class DbManagerService {
   static Future<List<Map<String, dynamic>>> getUndiagnosedCases({
     required String clinicianID,
     Function(Map<String, dynamic>)? onCaseProcessed,
+    int? limit,
+    int? daysBack,
   }) async {
     // Clinician retrieves undiagnosed cases
     try {
@@ -262,7 +264,13 @@ class DbManagerService {
 
       final String idToken = await AuthService.authorize();
 
-      final url = Uri.parse("$_baseUrl/cases/undiagnosed/$clinicianID");
+      // Build URL with optional query parameters
+      final queryParams = <String, String>{};
+      if (limit != null) queryParams['limit'] = limit.toString();
+      if (daysBack != null) queryParams['days_back'] = daysBack.toString();
+
+      final url = Uri.parse("$_baseUrl/cases/undiagnosed/$clinicianID")
+          .replace(queryParameters: queryParams.isEmpty ? null : queryParams);
       final response = await http.get(url, headers: {'Authorization': idToken});
 
       if (response.statusCode != 200) {
