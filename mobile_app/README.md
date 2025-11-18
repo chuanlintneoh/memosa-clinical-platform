@@ -80,12 +80,23 @@ lib/
 2. Turn on developer options by tapping the build number 7 times in Settings > About phone > Software information
 3. Developer options > Turn on wireless debugging
 4. Wireless debugging > Pair device with pairing code
-5. adb pair <ip>:<pairing_port>
+5. `adb pair <ip>:<pairing_port>`
 6. Enter pairing code
-7. adb connect <ip>:<connection_port>
+7. `adb connect <ip>:<connection_port>`
    Note: Connection port is the IP address and port shown under Wireless debugging, pairing port is the IP address, port and pairing code shown when pair device with pairing code.
-8. adb devices
-9. flutter devices
-10. adb disconnect
-11. adb devices
+8. `adb devices`
+9. `flutter devices`
+10. `adb disconnect`
+11. `adb devices`
 12. Turn off wireless debugging and developer options on mobile device
+
+## Create apk file for new application version
+
+1. Update version in pubspec.yaml (`0.1.0+1` > `0.2.0+2`)
+2. Ensure keystore is present, if android/app/uat-release-key.jks already exist in project, skip generating.
+3. Ensure android/key.properties have correct key and value pairs
+4. `flutter clean`
+5. `flutter pub get`
+6. Verify keystore info, confirm its the same key: `keytool -list -v -keystore android/app/uat-release-key.jks -alias uat_key` then enter the previously created keystore password when prompted
+7. Build the release APK: `flutter build apk --release`
+8. Locate the artifact at build/app/outputs/flutter-apk/app-release.apk
